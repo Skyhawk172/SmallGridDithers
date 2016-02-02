@@ -13,7 +13,9 @@
 #         in SGD-LOCI code to calculate PSF subtraction.
 #
 # HOW: python generate_PSFs.py --help
-#
+#      python generate_PSFs.py -I MIRI   -f f1065c -mask FQPM1065 -stop maskfqpm -gridstep 20 --jitter 7 --rms 204 --nruns 10
+#      python generate_PSFs.py -I Nircam -f f210m  -mask mask210r -stop circlyot -gridstep 20 --jitter 7 --rms 136 --nruns 10
+
 # WHO: Charles-Philippe Lajoie
 #
 # WHEN: April 2014
@@ -35,22 +37,22 @@ def set_sim_params(args):
     #webbpsf.setup_logging(level='ERROR')
 
     nruns= args.nruns            #
-    filt = args.f.upper()        #'F430M'
-    mask_coron=args.mask.upper() #'MASK430R'
-    pupil_stop=args.stop.upper() #'CIRCLYOT'
+    filt = args.f.upper()        #e.g. F430M
+    mask_coron=args.mask.upper() #e.g. MASK430R
+    pupil_stop=args.stop.upper() #e.g. CIRCLYOT
     instr=args.I.upper()
 
     if instr=='NIRCAM': lambda0=float(filt[1:4])/100
     elif instr=='MIRI': lambda0=float(filt[1:5])/100
     jitter= args.jitter 
     grid_step=args.gridstep
-    gridpoints=25
+    gridpoints=args.gridNpts
     side=int(np.sqrt(gridpoints))
     max_step=np.floor(side/2)
     rms= args.rms 
 
-    fovarcsec = 7.04 
-    fovpixels = 64
+    fovarcsec = args.fov #7.04 
+    #fovpixels = 64
 
     sigmaTA = 4.7
     sigmaFSM= 2.0
@@ -267,10 +269,13 @@ if __name__ == "__main__":
     parser.add_argument("-mask"    , type=str, metavar="MASK_CORON",required=True, help="Mask coron. to use")
     parser.add_argument("-stop"    , type=str, metavar="PUPIL STOP",required=True, help="Pupil stop to use")
     parser.add_argument("-gridstep", type=float, default=20,  help="SGD grid steps (default: 20)")
+    parser.add_argument("--gridNpts",type=float, default=9,   help="SGD grid points (default: 9)")
     parser.add_argument("--jitter" , type=float, default=0  , help="sigma Jitter (default: 0 mas)")
     parser.add_argument("--rms"    , type=int  , default=136, help="select which OPD rms to use, if available (default: 136 nm)")
     parser.add_argument("--nruns"  , type=int  , default=1,   help="number of SGD grids to generate (default: 1)")
-    parser.add_argument("--noopd"  , action="store_true",    help="don't use any OPD (default: False)")
+    parser.add_argument("--noopd"  , action="store_true",     help="don't use any OPD (default: False)")
+    parser.add_argument("--fov"    , type=float, default=7.04, help="Field of view (diameter) in arcseconds (default=7.04)")
+
     args = parser.parse_args()
 
     set_sim_params(args)
