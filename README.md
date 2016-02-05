@@ -5,44 +5,55 @@ algorithm, and calculate the azimuthal average and contrast curves.  The first
 three steps were originally written in Mathematica code and I have translated
 (and made them run faster) into Python.
 
-The overall procedure is summarized in the Figure below:
+The overall procedure is summarized in the Figure below and the Python scripts
+below are used sequentially to arrive at the final average 5-sigma contrast curves.
 
 ![alt text](https://github.com/Skyhawk172/SmallGridDithers/blob/master/SGDcartoon.png "SGD cartoon")
 
 
 ## 1. Generate_PSFs.py
 
-Generate PSF grids for LOCI using WebbPSF
+Generate PSF grids using WebbPSF.
 
-Optional arguments:
-*  -h, --help          show this help message and exit
-*  -I INSTRUMENT       instrument to use (MIRI or NIRCam)
-*  -f FILTER           Filter to use
-*  -mask MASK_CORON    Mask coron. to use
-*  -stop PUPIL_STOP    Pupil stop to use
-*  -gridstep GRIDSTEP  SGD grid steps (default: 20)
-*  -gridNpts GRIDNPTS  SGD square grid points (default: 9)
-*  -jitter JITTER      sigma Jitter (default: 0 mas)
-*  -rms RMS            select OPD rms to use, if available (default: 136 nm)
-*  -nruns NRUNS        number of SGD grids to generate (default: 1)
-*  -fov FOV            Field of view (diameter) in arcseconds (default=7.04)
-*  --noopd             don't use any OPD (default: False)
+The idea here is that we generate one science target PSF using the expected
+target acquisition accuracy, then simulate the acquision of another reference
+PSF that we dither behind the coronagraphic mask, following a small square grid
+pattern. Typically, the square grids have 9 points and the grid step is 20 mas,
+although both can be modified on the command line (see below).
 
+Command-line arguments (-- for optional):
+*  -h, --help        show this help message and exit
+*  -I INSTRUMENT     Instrument to use (MIRI or NIRCam)
+*  -f FILTER         Filter to use
+*  -mask MASK_CORON  Mask coron. to use
+*  -stop PUPIL_STOP  Pupil stop to use
+*  --rms RMS         Select OPD rms to use, if available (default: 136 nm)
+*  --noopd           Do not use any OPD (default: False)
+*  --jitter JITTER   Sigma Jitter (default: 0 mas)
+*  --fov FOV         Field of view (diam.; default=7.04 arcsecond)
+*  --nruns NRUNS     Number of SGD grids to generate (default: 1)
+*  --gstep GSTEP     SGD grid steps (default: 20 mas)
+*  --gnpts GNPTS     SGD square grid points (default: 9)
 
 
 ## 2. AddNoisetoPSF.py
 
-Add simple noise sources to pre-generated PSFs
+Add simple noise sources to pre-generated PSFs. Included are approximations for
+stellar photon noise, background photon noise, detector noise (readnoise, dark
+noise), as well as OTE throughput and detector quantum efficiency. The script
+scales the original PSF (output of generate_PSFs.py) according to the user's
+inputs regarding the stellar spectrum, distance, and exposure time and saves the
+output images in a separate folder.
 
-Optional arguments:
+Command-line arguments (-- for optional):
 *  -h, --help         show this help message and exit
 *  -I Instrument      JWST instrument
 *  -f FILTER          Filter to use
 *  -step STEP         Dither grid step size (default: 20 mas)
 *  -jitter JITTER     sigma Jitter (default: 0 mas)
-*  --t T              effective temperature (default: solar T_eff=5800 K)
-*  --z Z              metallicity (default: solar z=0)
-*  --g G              surface gravity (default: solar log_g=4.44)
+*  --t T              effective temperature (default: Solar T=5800 K)
+*  --z Z              metallicity (default: Solar z=0)
+*  --g G              surface gravity (default: Solar log_g=4.44)
 *  --R R              radius of star (default: 1 Rsun )
 *  --dist DIST        distance to star parsec (default: 10 pc)
 *  --exptime EXPTIME  exposure time (default: 1 sec)
@@ -55,7 +66,9 @@ Optional arguments:
 
 ## 3. (ApplyLOCI.py)
 
+See https://github.com/Skyhawk172/PythonLOCI for now...
 
 ## 4. AzimuthalAverage_SGD.py
 
-
+Ingests the all outputs "Maps" of ApplyLOCI.py and calculates an average 5-sigma
+contrast curve along with a +/- 1-sigma range.
