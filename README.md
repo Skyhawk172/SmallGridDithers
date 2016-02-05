@@ -8,9 +8,7 @@ three steps were originally written in Mathematica code and I have translated
 The overall procedure is summarized in the Figure below:
 
 Reference-style: 
-![alt text][logo]
-
-[logo]: https://github.com/Skyhawk172/SmallGridDithers/blob/master/SGDcartoon.pdf "SGD cartoon"
+![alt text](https://github.com/Skyhawk172/SmallGridDithers/blob/master/SGDcartoon.pdf "SGD cartoon")
 
 
 1. Generate_PSFs.py
