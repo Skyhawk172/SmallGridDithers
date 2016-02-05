@@ -13,21 +13,20 @@
 #         in SGD-LOCI code to calculate PSF subtraction.
 #
 # HOW: python generate_PSFs.py --help
-#      python generate_PSFs.py -I MIRI   -f f1065c -mask FQPM1065 -stop maskfqpm -gridstep 20 --jitter 7 --rms 204 --nruns 10
-#      python generate_PSFs.py -I Nircam -f f210m  -mask mask210r -stop circlyot -gridstep 20 --jitter 7 --rms 136 --nruns 10
-
+#      python generate_PSFs.py -I MIRI   -f f1065c -mask FQPM1065 -stop maskfqpm -gridstep 20 -jitter 7 -rms 204 -nruns 10
+#      python generate_PSFs.py -I Nircam -f f210m  -mask mask210r -stop circlyot -gridstep 20 -jitter 7 -rms 136 -nruns 10
+#
 # WHO: Charles-Philippe Lajoie
 #
 # WHEN: April 2014
 ##############################################################
 
 import webbpsf
-from webbpsf import *
-import pysynphot
 import numpy as np
+import pysynphot
+import pyfits
 import math
-from numpy import dot
-import sys, os, logging, pyfits, argparse, pkg_resources
+import argparse, sys, os, logging, pkg_resources
 
 
 
@@ -51,7 +50,7 @@ def set_sim_params(args):
     max_step=np.floor(side/2)
     rms= args.rms 
 
-    fovarcsec = args.fov #7.04 
+    fovarcsec = args.fov #default 7.04 
     #fovpixels = 64
 
     sigmaTA = 4.7
@@ -184,7 +183,7 @@ def generate_PSF(img, outdir, nruns, x0, y0, grid_step, side, max_step, sigmaTA,
     src=pysynphot.Icat("ck04models",5800, 0.0, 4.44) #temp, z, logg
     print src
 
-    njitter=50 # number of PSF to use to create the final jittered PSF
+    njitter=50 #number of PSF to use to create the final jittered PSF
     for n in xrange(1,nruns+1):
         grid = make_ref_grid(n, outdir, x0, y0, side, max_step, grid_step, sigmaTA, sigmaFSM)
         
@@ -263,18 +262,19 @@ def generate_PSF(img, outdir, nruns, x0, y0, grid_step, side, max_step, sigmaTA,
 if __name__ == "__main__":
     np.random.seed(0)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-I"       , type=str, metavar="INSTRUMENT" ,required=True, help="instrument to use (MIRI or NIRCam)")
-    parser.add_argument("-f"       , type=str, metavar="FILTER"    ,required=True, help="Filter to use")
-    parser.add_argument("-mask"    , type=str, metavar="MASK_CORON",required=True, help="Mask coron. to use")
-    parser.add_argument("-stop"    , type=str, metavar="PUPIL STOP",required=True, help="Pupil stop to use")
-    parser.add_argument("-gridstep", type=float, default=20,  help="SGD grid steps (default: 20)")
-    parser.add_argument("--gridNpts",type=float, default=9,   help="SGD grid points (default: 9)")
-    parser.add_argument("--jitter" , type=float, default=0  , help="sigma Jitter (default: 0 mas)")
-    parser.add_argument("--rms"    , type=int  , default=136, help="select which OPD rms to use, if available (default: 136 nm)")
-    parser.add_argument("--nruns"  , type=int  , default=1,   help="number of SGD grids to generate (default: 1)")
-    parser.add_argument("--noopd"  , action="store_true",     help="don't use any OPD (default: False)")
-    parser.add_argument("--fov"    , type=float, default=7.04, help="Field of view (diameter) in arcseconds (default=7.04)")
+    parser = argparse.ArgumentParser(description="Generate PSF grids for LOCI using WebbPSF")
+
+    parser.add_argument("-I"      , type=str, metavar="INSTRUMENT",required=True, help="Instrument to use (MIRI or NIRCam)")
+    parser.add_argument("-f"      , type=str, metavar="FILTER"    ,required=True, help="Filter to use")
+    parser.add_argument("-mask"   , type=str, metavar="MASK_CORON",required=True, help="Mask coron. to use")
+    parser.add_argument("-stop"   , type=str, metavar="PUPIL_STOP",required=True, help="Pupil stop to use")
+    parser.add_argument("--rms"   , type=int  , default=136, help="Select OPD rms to use, if available (default: 136 nm)")
+    parser.add_argument("--noopd" , action="store_true",     help="Do not use any OPD (default: False)")
+    parser.add_argument("--jitter", type=float, default=0  , help="Sigma Jitter (default: 0 mas)")
+    parser.add_argument("--fov"   , type=float, default=7.04,help="Field of view (diam.; default=7.04 arcsecond)")
+    parser.add_argument("--nruns" , type=int  , default=1  , help="Number of SGD grids to generate (default: 1)")
+    parser.add_argument("--gstep" , type=float, default=20 , help="SGD grid steps (default: 20 mas)")
+    parser.add_argument("--gnpts" , type=float, default=9  , help="SGD square grid points (default: 9)")
 
     args = parser.parse_args()
 
