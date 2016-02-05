@@ -8,6 +8,10 @@ three steps were originally written in Mathematica code and I have translated
 The overall procedure is summarized in the Figure below and the Python scripts
 below are used sequentially to arrive at the final average 5-sigma contrast curves.
 
+Note that some input data to the scripts below such as filter transmission, QE
+curves, and/or background noise levels as well as Brian York's JWST Simulator
+python modules (for AddNoisetoPSF.py) will only be provided upon request.
+
 ![alt text](https://github.com/Skyhawk172/SmallGridDithers/blob/master/SGDcartoon.png "SGD cartoon")
 
 
@@ -19,7 +23,8 @@ The idea here is that we generate one science target PSF using the expected
 target acquisition accuracy, then simulate the acquision of another reference
 PSF that we dither behind the coronagraphic mask, following a small square grid
 pattern. Typically, the square grids have 9 points and the grid step is 20 mas,
-although both can be modified on the command line (see below).
+although both can be modified on the command line (see below).  The PSF are all
+generated using [WebbPSF](http://www.stsci.edu/jwst/software/webbpsf).
 
 Command-line arguments (-- for optional):
 *  -h, --help        show this help message and exit
