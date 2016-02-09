@@ -280,14 +280,14 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
                 img.AddDetectorNoise(instrumentMode='miri_fast')
             elif instr=='NIRCam': 
                 img.AddErrorDark('JWST_Sim/'+DefaultSettings._FILE_ERR_RDRK[instr+'_'+nircamMode])
-                img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
+                img.AddDetectorNoise(instrumentMode=instr.lower())
 
             # ADD POISSON NOISE TO IMAGE:
             img.AddPoissonNoise()
 
             # ADD FLAT NOISE TO IMAGE:
             if   instr=='MIRI'  : img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
-            elif instr=='NIRCam': img.AddDetectorNoise(instrumentMode=instr.lower())
+            elif instr=='NIRCam': img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
 
             # ADD "RESIDUAL" COSMIC RAYS TO IMAGE:
             img.AddErrorCosmic(DefaultSettings._PIXSIZE[instr])
