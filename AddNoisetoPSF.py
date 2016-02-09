@@ -185,141 +185,6 @@ class Spectrum(object):
 
 
 
-def AddBKGRDPoissonNoise(data,Bkgrd,absVal=False):
-        """
-        Generate Poisson noise and add it to the internal image.
-
-        SEE BRIAN YORK'S JwstImage.py routine
-
-        Parameters
-        ----------
-        absVal: bool, optional
-            Take absolute value of `noiseData`.
-        """
-
-        # 1. Gaussian distribution - shot noise.
-        # 2. Poisson = Gaussian * SQRT(image)
-        noiseData = np.random.normal(size=data.shape) * np.sqrt(Bkgrd)
-
-        # Avoid negative noise
-        if absVal: noiseData = np.abs(noiseData)
-        
-        data += noiseData
-        del noiseData
-        return data
-
-
-
-def convert(in_path,out_path,instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,vega=False,exptime=1.0,clobber=False,nonoise=False,run=1,**kwargs):
-
-    if instr=='NIRCam': filt=filt[:5] # Strip the mask string off, e.g. F210M-MASK210R
-    spec=Spectrum(instr,filt)
-
-    if instr=='MIRI': 
-        xdim,ydim = (64,64)
-    elif instr=='NIRCam':
-        nircamMode = None
-        try:
-            w_fil = int(filt[1:-1])
-        except:
-            print filterName, 'has no wavelength info'
-            sys.exit()
-        if w_fil >= 235:
-            xdim,ydim = (109,109)
-            nircamMode = 'long'
-        else:
-            xdim,ydim = (222,222)
-            nircamMode = 'short'
-
-    bandpass=spec.getBandpass()  
-    star=spec.getSpectrum(Teff=Teff,z=z,logg=logg,vega=vega) # returns angstroms, flam
-
-    if vega==False: star*=(radius*2.254e-8/distance)**2 #distance in units of parsec
-
-    star.convert("photlam") #photons s^-1 cm^-2 A^-1
-    obs=S.Observation(star,bandpass) 
-    #print 'units: ',star.waveunits, star.fluxunits
-
-
-#####################################################################################
-#   BELOW: NOT NECESSARY SINCE THIS IS TAKEN INTO ACCOUNT WHEN GENERATING THE PSFs
-#          unless using WEBBPSF!!!
-#####################################################################################
-#    if instr == 'MIRI': #for NIRCam, these profiles are included in the filters transmission
-#        bp_QE   = spec.getMIRI_QE()
-#        obs     = S.Observation(obs,bp_QE)
-#        bp_Germ = spec.getMIRI_Germanium()
-#        obs     = S.Observation(obs,bp_Germ)
-#        bp_OTE  = spec.getMIRI_OTE_transmission()
-#        obs     = S.Observation(obs,bp_OTE)
-
-    ncounts=np.trapz(obs.flux,obs.wave)*DefaultSettings.JWSTREFS['area']  #multiply by collecting area
-    print "# phot s^-1 :", ncounts
-
-    runNumber=run
-    string='run'+str(runNumber)+'_'
-    listfiles=os.listdir(in_path)
-    infiles=[i for i in listfiles if 'PSF' in i]
-    inputfiles=[i for i in infiles if 'run'+str(runNumber)+'_' in i]
-
-    ic=0
-    for ifile in inputfiles:
-        print ifile
-        img= JwstImage.JwstImage.FromFitsFile(in_path+ifile,instrument=spec.instr,filterName=spec.filt,out_x=xdim,out_y=ydim,in_path=in_path,out_path='.')
-        try: 
-            background = DefaultSettings._BGLEV[img.instrument][img.filterName]
-        except:
-            if ic==0: print '  --> Filter '+img.filterName+" not in DefaultSettings.py for background levels. Using Lajoie's numbers.\n"
-            background = MY_BGLEVEL[img.instrument][img.filterName]
-
-        img.exptime=exptime #that actually multiples the image by the exposure time?!?
-
-        if nonoise==False:
-            print '   --> Adding noise to PSF'
-
-            img.__imul__( ncounts )            
-            print np.sum(img._data)
-
-            img.AddPoissonNoise()
-
-            #print "!!! NO BACKGROUND NOISE !!! "
-            #img.__simplyAdd__(background*exptime)
-            img._data=AddBKGRDPoissonNoise(img._data,background*exptime)
-
-            #if instr=='MIRI':
-            #    img.AddDetectorNoise(instrumentMode='miri_fast')
-            #    img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
-            #    img.AddErrorDark('JWST_Sim/'+DefaultSettings._FILE_ERR_RDRK[instr])
-
-            #elif instr=='NIRCam': 
-            #    img.AddDetectorNoise(instrumentMode=instr.lower())
-            #    img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
-            #    img.AddErrorDark('JWST_Sim/'+DefaultSettings._FILE_ERR_RDRK[instr+'_'+nircamMode])
-
-            #img.AddErrorCosmic(DefaultSettings._PIXSIZE[instr])
-
-        else: 
-            img.__imul__( ncounts )
-
-        print np.sum(img._data)
-        sys.exit()
-
-    #   DETECTOR SATURATION???
-    #    img._data[img._data>SATUR_LVL[img.instrument]]=SATUR_LVL[img.instrument]
-
-        img._header.add_history("LAJOIE: Spectrum scaled using AddNoisetoPSF.py")
-        string = "LAJOIE: Spectrum Teff= %d  Log g=%4.2f z=%5.2f R=%4.2f D=%d exptime=%d" %(Teff, logg, z, radius, distance, exptime)
-        img._header.add_history(string)
-        try: 
-            hdu=astropy.io.fits.PrimaryHDU(data=img._data, header=img._header)
-            hdu.writeto(out_path+'Scaled_'+ifile, clobber=clobber)#, img._data, img._header, clobber=clobber)
-            #writeto(out_path+'Scaled_'+ifile, img._data, img._header, clobber=clobber)
-        except: print '  --> File Scaled_'+ifile+' already exists. Use --clobber to overwrite'
-        del img
-        ic+=1
-
-
-
 
 def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,vega=False,exptime=1.0,webbpsf=False,**kwargs):
     if instr=='NIRCam': filt=filt[:5] # Strip the mask string off, e.g. F210M-MASK210R
@@ -388,14 +253,13 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, Teff=5800.,z=0.0,logg
     inputfiles=[i for i in infiles if 'run'+str(runNumber)+'_' in i]
 
     for ifile in inputfiles:
-        print ifile
+        print '\n--> Processing', ifile
         img= JwstImage.JwstImage.FromFitsFile(in_path+ifile,instrument=spec.instr,filterName=spec.filt,out_x=xdim,out_y=ydim,in_path=in_path,out_path='.')
         try: 
             background = DefaultSettings._BGLEV[img.instrument][img.filterName]
         except:
-            print '  --> Filter '+img.filterName+" not in DefaultSettings.py for background levels. Using Lajoie's numbers.\n"
+            print '  Filter '+img.filterName+" not in DefaultSettings.py for background levels. Using Lajoie's numbers."
             background = MY_BGLEVEL[img.instrument][img.filterName]
-
 
         # MULTIPLY ORIGINAL IMAGE BY NCOUNTS/SECOND:
         img.__imul__( ncounts )            
@@ -403,10 +267,9 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, Teff=5800.,z=0.0,logg
         # MULTIPLY IMAGE BY EXPOSURE TIME:
         img.exptime=exptime
 
-
-        # ADD NOISE SOURCES:
+        # ADD "RESIDUAL" NOISE SOURCES:
         if nonoise==False:
-            print '   --> Adding noise to PSF'
+            print '  Adding noise to PSF'
 
             # ADD BACKGROUND + DARK + READNOISE "PHOTONS" TO IMAGE BEFORE CALCULATING POISSON NOISE:
             img.__simplyAdd__(background*exptime)
@@ -428,6 +291,9 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, Teff=5800.,z=0.0,logg
             # ADD "RESIDUAL" COSMIC RAYS TO IMAGE:
             img.AddErrorCosmic(DefaultSettings._PIXSIZE[instr])
             
+            # SUBTRACT NOMINAL BACKGROUND TO MIMICK PROCESSING; POISSON NOISE REMAINS:
+            img.__simplyAdd__(-background*exptime)
+
 
         # UPDATE IMAGE HEADER & SAVE:
         img._header.add_history("LAJOIE: Spectrum scaled using AddNoisetoPSF.py")
@@ -539,11 +405,9 @@ if __name__ == "__main__":
 
     if args.run != 'all':  
         kwargs['run']=int(args.run)
-        #convert(in_path,out_path,instr,filt,**kwargs)
         addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, **kwargs)
     else:
         for i in xrange(1,nruns+1):
             kwargs['run']=i
-            #convert(in_path,out_path,instr,filt,**kwargs)
             addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, **kwargs)
 
