@@ -239,13 +239,14 @@ def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,v
     # INTEGRATE TOTAL NUMBER OF PHOTONS OVER BANDPASS:
     ncounts=np.trapz(obs.flux,obs.wave)*DefaultSettings.JWSTREFS['area']  #multiply by collecting area
 
-    return ncounts, spec, xdim, ydim
+    return ncounts, spec, xdim, ydim, nircamMode
 
 
 
-def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10., exptime=1.0, run=1, clobber=False, nonoise=False, **kwargs):
-    # LOOP OVER ALL THE ORIGINAL IMAGES.
-    # SCALE THEM AND ADD NOISE SOURCES:
+def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10., exptime=1.0, run=1, clobber=False, nonoise=False, **kwargs):
+
+    # LOOP OVER ALL THE ORIGINAL IMAGES. SCALE THEM AND ADD NOISE SOURCES:
+
     runNumber=run
     string='run'+str(runNumber)+'_'
     listfiles=os.listdir(in_path)
@@ -400,14 +401,14 @@ if __name__ == "__main__":
     #-----------------------------------#
     # CONVERSION OF PSFs:
     #-----------------------------------#
-    scalefactor, spectrum, xdim, ydim = findCountRate(instr, filt, **kwargs)
+    scalefactor, spectrum, xdim, ydim, ncmode = findCountRate(instr, filt, **kwargs)
     print "Scale factor phot s^-1 :", scalefactor
 
     if args.run != 'all':  
         kwargs['run']=int(args.run)
-        addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, **kwargs)
+        addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
     else:
         for i in xrange(1,nruns+1):
             kwargs['run']=i
-            addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, **kwargs)
+            addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
 
