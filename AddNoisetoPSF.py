@@ -61,13 +61,10 @@ class Spectrum(object):
         else: 
             print self.getFiltername(), self.getSpectrumInfo()
             self.star= S.Icat('phoenix',self.T,self.z,self.g) #FLAM surface flux units, i.e. ergs cm-2 s-1 A-1
-
             #star  = S.BlackBody(6000)
             #star= S.Icat('phoenix',5800,0.,4.4) #FLAM surface flux units, i.e. ergs cm-2 s-1 A-1
-            #self.star= self.star.renorm(self.j_v_abs,'vegamag',self.johnson_v) #renorm spectrum to (abs_mag, units system, band)
-        
+            #self.star= self.star.renorm(self.j_v_abs,'vegamag',self.johnson_v) #renorm spectrum to (abs_mag, units system, band)        
         return self.star
-
 
     def getBandpass(self): 
         if self.instr=='MIRI':
@@ -87,15 +84,16 @@ class Spectrum(object):
             self.nrow=0
             for row in self.reader:
                 x,y=row
-                self.fwave.append(float(x)*1e4) #microns in file since convert to angstroms
-                if self.instr=='MIRI'  : self.fthru.append(float(y)/100.)
+                self.fwave.append(float(x)*1e4)  #Microns in file, so convert to angstroms
+                self.fthru.append(float(y)/100.) #Percentage in file, so convert to fraction
 
             self.filt_wave=np.array(self.fwave)
             self.filt_thru=np.array(self.fthru)
             self.filt_thru[self.filt_thru<0]=0
 
         elif self.instr=='NIRCam':
-            #THESE FILTER FILES INCLUDE: OTE + INSTRUMENT + DBS + QE TRANSMISSION PROFILES, as provided by J. Stansberry. April 2015
+            # THESE FILTER FILES INCLUDE: OTE + INSTRUMENT + DBS + QE TRANSMISSION PROFILES, 
+            # Provided by J. Stansberry. April 2015
             filtname='/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/'+self.instr+'/filters/'+self.filt+'_dbs_qe.dat'
             try: 
                 filt_file = np.loadtxt(filtname)
@@ -107,11 +105,12 @@ class Spectrum(object):
                 print [filters[i].split('/')[-1][:-4] for i in xrange(len(filters))],"\n"
                 sys.exit()
 
-            self.filt_wave = filt_file[:,0]*1e4 #microns in file, so convert to angstroms
+            self.filt_wave = filt_file[:,0]*1e4 #Microns in file, so convert to angstroms
             self.filt_thru = filt_file[:,1]
             self.filt_thru[self.filt_thru<0]=0
 
-        self.bandpass = S.spectrum.ArraySpectralElement(throughput=self.filt_thru,wave=self.filt_wave, waveunits='angstroms')       
+        # CREATE A "SPECTRUM" FROM THE ARRAYS FILT_WAVE AND FILT_THRU:
+        self.bandpass = S.spectrum.ArraySpectralElement(throughput=self.filt_thru, wave=self.filt_wave, waveunits='angstroms')       
         return self.bandpass 
 
 
@@ -144,7 +143,8 @@ class Spectrum(object):
 
 
     def getMIRI_OTE_transmission(self):
-        waves = np.arange(8,25+1,0.5)
+        #5 to 30 microns; convert to angstroms
+        waves = np.arange(5,30+1,0.5)*1e4
         trans = 0.95*np.ones(len(waves)) # see Paul Lightsey figure 4, SPIE 2012 "Optical transmission for the James Webb Space Telescope"
 
         eOTE = np.asarray( zip(waves,trans) )
@@ -211,11 +211,8 @@ def AddBKGRDPoissonNoise(data,Bkgrd,absVal=False):
 
 
 
-def convert(in_path,out_path,instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,vega=False,exptime=1.0,clobber=False,nonoise=False,run=1,**kwargs):
-
+def prepareSpectrum(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,vega=False,exptime=1.0,webbpsf=False,**kwargs):
     if instr=='NIRCam': filt=filt[:5] # Strip the mask string off, e.g. F210M-MASK210R
-    spec=Spectrum(instr,filt)
-
     if instr=='MIRI': 
         xdim,ydim = (64,64)
     elif instr=='NIRCam':
@@ -232,31 +229,48 @@ def convert(in_path,out_path,instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,dis
             xdim,ydim = (222,222)
             nircamMode = 'short'
 
+    # CREATE SPECTRUM OBJECT:
+    spec=Spectrum(instr,filt)
+
+    # CREATE FILTER BANDPASS FOR FILTER NAME:
     bandpass=spec.getBandpass()  
-    star=spec.getSpectrum(Teff=Teff,z=z,logg=logg,vega=vega) # returns angstroms, flam
 
+    # CREATE SPECTRUM BASED ON Teff, Z, and LOGG:
+    star=spec.getSpectrum(Teff=Teff,z=z,logg=logg,vega=vega) # Returns Angstroms, Flam
+
+    # SCALE FOR DISTANCE & CONVERT UNITS TO: photons s^-1 cm^-2 A^-1
     if vega==False: star*=(radius*2.254e-8/distance)**2 #distance in units of parsec
+    star.convert("photlam") 
 
-    star.convert("photlam") #photons s^-1 cm^-2 A^-1
+    # CREATE OBSERVATION (STAR times BANDPASS):
     obs=S.Observation(star,bandpass) 
-    #print 'units: ',star.waveunits, star.fluxunits
+    #print 'units: ',obs.waveunits, obs.fluxunits
 
 
-#####################################################################################
-#   BELOW: NOT NECESSARY SINCE THIS IS TAKEN INTO ACCOUNT WHEN GENERATING THE PSFs
-#          unless using WEBBPSF!!!
-#####################################################################################
-#    if instr == 'MIRI': #for NIRCam, these profiles are included in the filters transmission
-#        bp_QE   = spec.getMIRI_QE()
-#        obs     = S.Observation(obs,bp_QE)
-#        bp_Germ = spec.getMIRI_Germanium()
-#        obs     = S.Observation(obs,bp_Germ)
-#        bp_OTE  = spec.getMIRI_OTE_transmission()
-#        obs     = S.Observation(obs,bp_OTE)
+    # ADD QE/GERMANIUM/OTE TRANSMISSION TO OBSERVATION:
+    if webbpsf:
+        print "Using images created by WebbPSF"
+        if instr == 'MIRI': 
+            bp_QE   = spec.getMIRI_QE()
+            obs     = S.Observation(obs,bp_QE)
+            bp_Germ = spec.getMIRI_Germanium()
+            obs     = S.Observation(obs,bp_Germ)
+            bp_OTE  = spec.getMIRI_OTE_transmission()
+            obs     = S.Observation(obs,bp_OTE)
+        else: pass # FOR NIRCam, QE/OTE PROFILES ARE INCLUDED IN FILTER TRANSMISSION CURVES
+    else: pass     # FOR IMAGES CREATED WITH MATHEMATICA, QE/GERMANIUM/OTE ARE ALREADY INCLUDED
 
+
+    # INTEGRATE TOTAL NUMBER OF PHOTONS OVER BANDPASS:
     ncounts=np.trapz(obs.flux,obs.wave)*DefaultSettings.JWSTREFS['area']  #multiply by collecting area
-    print "# phot s^-1 :", ncounts
 
+    return ncounts, spec, xdim, ydim
+
+
+
+def convertnew(spec, ncounts, in_path, out_path, xdim, ydim, Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10., exptime=1.0, run=1, clobber=False, nonoise=False, **kwargs):
+
+    # LOOP OVER ALL THE ORIGINAL IMAGES: SCALE THEM AND ADD NOISE SOURCES:
     runNumber=run
     string='run'+str(runNumber)+'_'
     listfiles=os.listdir(in_path)
@@ -273,7 +287,7 @@ def convert(in_path,out_path,instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,dis
             if ic==0: print '  --> Filter '+img.filterName+" not in DefaultSettings.py for background levels. Using Lajoie's numbers.\n"
             background = MY_BGLEVEL[img.instrument][img.filterName]
 
-        img.exptime=exptime #that actually multiples the image by the exposure time?!?
+        img.exptime=exptime #that actually multiples the image by the exposure time
 
         if nonoise==False:
             print '   --> Adding noise to PSF'
@@ -315,12 +329,6 @@ def convert(in_path,out_path,instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,dis
         del img
         ic+=1
 
-
-
-
-
-
-
 #-----------------------------------#
 # MAIN Method
 #-----------------------------------#
@@ -335,6 +343,7 @@ if __name__ == "__main__":
     parser.add_argument("-f"       , metavar="FILTER",required=True, help="Filter to use")
     parser.add_argument("-step"    , required=True, default=20, help="Dither grid step size (default: 20 mas)")
     parser.add_argument("-jitter"  , required=True, default=0 , help="sigma Jitter (default: 0 mas)")
+    parser.add_argument("--webbpsf", action="store_true", default=False,   help="use if images were created with WebbPSF")
     parser.add_argument("--t"      , type=float, default=5800,  help="effective temperature (default: solar T_eff=5800 K)")
     parser.add_argument("--z"      , type=float, default=0.0 ,  help="metallicity (default: solar z=0)")
     parser.add_argument("--g"      , type=float, default=4.44,  help="surface gravity (default: solar log_g=4.44)")
@@ -349,10 +358,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+
     instr=(args.I).upper()
     if instr=='NIRCAM': instr='NIRCam'
     filt=(args.f).upper() 
-    kwargs={'Teff':args.t,
+    kwargs={'webbpsf':args.webbpsf,
+            'Teff':args.t,
             'z':args.z,
             'logg':args.g,
             'radius' :args.R,
@@ -405,12 +416,19 @@ if __name__ == "__main__":
     #-----------------------------------#
     # CONVERSION OF PSFs:
     #-----------------------------------#
+    
+
+    scalefactor, spectrum, xdim, ydim = prepareSpectrum(instr, filt, **kwargs)
+    print "scale factor phot s^-1 :", scalefactor
+
     if args.run != 'all':  
         kwargs['run']=int(args.run)
-        convert(in_path,out_path,instr,filt,**kwargs)
+        #convert(in_path,out_path,instr,filt,**kwargs)
+        convertnew(spectrum, scalefactor, in_path,out_path, xdim, ydim, **kwargs)
     else:
         for i in xrange(1,nruns+1):
             kwargs['run']=i
-            convert(in_path,out_path,instr,filt,**kwargs)
+            convertnew(spectrum, scalefactor, in_path,out_path, xdim, ydim, **kwargs)
+            #convert(in_path,out_path,instr,filt,**kwargs)
 
 
