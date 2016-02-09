@@ -193,9 +193,10 @@ def plot_labels(max_gain,indir):
                
 
     split=re.split('/',sys.argv[1])
-    note='Dither step='+re.split(r'(\d+)',split[2])[1]+'   Jitter='+re.split(r'(\d+)',split[3])[1]
-    P.text(xcutoff+35.5,ymax-0.5*np.abs(ymax-ymin),note)
-
+    try: 
+        note='Dither step='+re.split(r'(\d+)',split[2])[1]+'   Jitter='+re.split(r'(\d+)',split[3])[1]
+        P.text(xcutoff+35.5,ymax-0.5*np.abs(ymax-ymin),note)
+    except: pass
 
     ax.set_xticks(np.arange(0,maxLambdaD))
     ax.set_ylabel('%d$\sigma$ contrast (log)' % nsigmas)
@@ -330,6 +331,7 @@ colors = [  'b',   'g',   'r',  'm', 'y']     #color code for loop
 # AVAILABLE IN THE CONTRAST FILES
 #############################################
 os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/MIRI/Dither-LOCI/Results/'+indir)
+#os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/CWG/SGD/'+indir)
 directory=os.getcwd()
 
 if 'Originals' not in indir: prefix='Scaled_'
@@ -434,6 +436,7 @@ else:
 if len(sys.argv)>2: plot_TApositions()
 
 os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/MIRI/Dither-LOCI/Results/'+indir)
+#os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/CWG/SGD/'+indir)
 print indir
 raw_input("Press enter to save PDF to '%s'" %filename)
 print '   --> Saving to file',filename
