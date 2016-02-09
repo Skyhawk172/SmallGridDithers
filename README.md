@@ -50,12 +50,18 @@ scales the original PSF (output of generate_PSFs.py) according to the user's
 inputs regarding the stellar spectrum, distance, and exposure time and saves the
 output images in a separate folder.
 
+Note that the image size for MIRI and NIRCam (Short wave & Long wave) are
+hardcoded in the function "prepareSpectrum". The default values are 64, 109, and
+222 pixels across for MIRI, NIRCam short wave, and NIRCam long wave,
+respectively. The user may need to change these values accordingly.
+
 Command-line arguments (-- for optional):
 *  -h, --help         show this help message and exit
 *  -I Instrument      JWST instrument
 *  -f FILTER          Filter to use
 *  -step STEP         Dither grid step size (default: 20 mas)
 *  -jitter JITTER     sigma Jitter (default: 0 mas)
+*  --webbpsf          use if images were created with WebbPSF
 *  --t T              effective temperature (default: Solar T=5800 K)
 *  --z Z              metallicity (default: Solar z=0)
 *  --g G              surface gravity (default: Solar log_g=4.44)
@@ -77,3 +83,5 @@ See https://github.com/Skyhawk172/PythonLOCI for now...
 
 Ingests the all outputs "Maps" of ApplyLOCI.py and calculates an average 5-sigma
 contrast curve along with a +/- 1-sigma range.
+
+Contrast is simply defined as the... 
