@@ -272,22 +272,21 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
         if nonoise==False:
             print '  Adding noise to PSF'
 
-            # ADD BACKGROUND + DARK + READNOISE "PHOTONS" TO IMAGE BEFORE CALCULATING POISSON NOISE:
+            # ADD BACKGROUND TO IMAGE BEFORE CALCULATING TOTAL POISSON NOISE:
             img.__simplyAdd__(background*exptime)
-
-            if   instr=='MIRI':   
-                img.AddErrorDark('JWST_Sim/'+DefaultSettings._FILE_ERR_RDRK[instr])
-                img.AddDetectorNoise(instrumentMode='miri_fast')
-            elif instr=='NIRCam': 
-                img.AddErrorDark('JWST_Sim/'+DefaultSettings._FILE_ERR_RDRK[instr+'_'+nircamMode])
-                img.AddDetectorNoise(instrumentMode=instr.lower())
 
             # ADD POISSON NOISE TO IMAGE:
             img.AddPoissonNoise()
 
-            # ADD FLAT NOISE TO IMAGE:
-            if   instr=='MIRI'  : img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
-            elif instr=='NIRCam': img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
+            # ADD "RESIDUAL" DARK, READNOISE, AND FLAT NOISE TO IMAGE:
+            if   instr=='MIRI':   
+                img.AddErrorDark('JWST_Sim/'+DefaultSettings._FILE_ERR_RDRK[instr])
+                img.AddDetectorNoise(instrumentMode='miri_fast')
+                img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
+            elif instr=='NIRCam': 
+                img.AddErrorDark('JWST_Sim/'+DefaultSettings._FILE_ERR_RDRK[instr+'_'+nircamMode])
+                img.AddDetectorNoise(instrumentMode=instr.lower())
+                img.AddErrorFlat('JWST_Sim/'+DefaultSettings._FILE_ERR_FLAT[instr])
 
             # ADD "RESIDUAL" COSMIC RAYS TO IMAGE:
             img.AddErrorCosmic(DefaultSettings._PIXSIZE[instr])
