@@ -24,6 +24,7 @@
 import numpy as np
 import pysynphot as S
 import csv, sys, glob, os, pyfits, astropy
+import scipy.ndimage.interpolation as scint
 import pylab as P
 import JwstImage, ObservationModule, DefaultSettings, MakeCosmicRay
 import argparse
@@ -190,6 +191,7 @@ def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,v
     if instr=='NIRCam': filt=filt[:5] # Strip the mask string off, e.g. F210M-MASK210R
     if instr=='MIRI': 
         xdim,ydim = (64,64)
+        nircamMode = None
     elif instr=='NIRCam':
         nircamMode = None
         try:
@@ -243,7 +245,7 @@ def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,v
 
 
 
-def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10., exptime=1.0, run=1, clobber=False, nonoise=False, **kwargs):
+def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10., exptime=1.0, run=1, clobber=False, nonoise=False, planets=False, **kwargs):
 
     # LOOP OVER ALL THE ORIGINAL IMAGES. SCALE THEM AND ADD NOISE SOURCES:
 
@@ -252,6 +254,12 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
     listfiles=os.listdir(in_path)
     infiles=[i for i in listfiles if 'PSF' in i]
     inputfiles=[i for i in infiles if 'run'+str(runNumber)+'_' in i]
+
+    if planets:
+        unocculted=glob.glob(in_path+"/*run"+str(runNumber)+"_"+"*Unocculted*"+"*.fits")
+        hdu=pyfits.open(unocculted[0])
+        planet=hdu[0].data * ncounts * exptime   
+        planets_img, planets_mags, planets_seps = addPlanets(spec.instr, spec.filt, planet)
 
     for ifile in inputfiles:
         print '\n--> Processing', ifile
@@ -267,6 +275,11 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
 
         # MULTIPLY IMAGE BY EXPOSURE TIME:
         img.exptime=exptime
+
+        # ADD PLANETS IF DESIRED:
+        if planets and "ScienceTarget" in ifile: 
+            print "  Injecting planets to", ifile
+            img._data += planets_img
 
         # ADD "RESIDUAL" NOISE SOURCES:
         if nonoise==False:
@@ -299,6 +312,17 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
         img._header.add_history("LAJOIE: Spectrum scaled using AddNoisetoPSF.py")
         string = "LAJOIE: Spectrum Teff= %d  Log g=%4.2f z=%5.2f R=%4.2f D=%d exptime=%d" %(Teff, logg, z, radius, distance, exptime)
         img._header.add_history(string)
+        if planets and "ScienceTarget" in ifile:
+            string = "LAJOIE: Planets mags B, C, D, E: %5.2f %5.2f %5.2f %5.2f" %(planets_mags[filt][0], planets_mags[filt][1], planets_mags[filt][2], planets_mags[filt][3])
+            img._header.add_history(string)
+            string = "LAJOIE: Planet B separation: %s " %(str(planets_seps["B"]))
+            img._header.add_history(string)
+            string = "LAJOIE: Planet C separation: %s " %(str(planets_seps["C"]))
+            img._header.add_history(string)
+            string = "LAJOIE: Planet D separation: %s " %(str(planets_seps["D"]))
+            img._header.add_history(string)
+            string = "LAJOIE: Planet E separation: %s " %(str(planets_seps["E"]))
+            img._header.add_history(string)
         try: 
             hdu=astropy.io.fits.PrimaryHDU(data=img._data, header=img._header)
             hdu.writeto(out_path+'/Scaled_'+ifile, clobber=clobber)
@@ -307,7 +331,29 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
 
 
 
+def addPlanets(instr, filt, planet):
+    # VALUES FOR HR 8799, PLANETS B, C, D, and E:
+    mags={"F1065C":[9.73, 9.12, 9.12, 15.0],
+          "F1140C":[9.16, 8.82, 8.82, 15.0],
+          "F1550C":[9.02, 8.71, 8.71, 15.0] }
 
+    seps={"B":[0.706, -1.563], "C":[0.765, 0.558], "D":[-0.529, 0.323], "E":[-0.09, 0.366] }
+
+
+    # DETERMINE PIXEL SIZE FOR INSTRUMENT/CHANNEL:
+    if instr=="MIRI": pixelSize = 0.11
+    if instr=="NIRCam":
+        if filt=="F210M": pixelSize = 0.032
+        else: pixelSize = 0.065
+
+    shiftedB = scint.shift(planet, (seps["B"][0]/pixelSize, seps["B"][1]/pixelSize))
+    shiftedC = scint.shift(planet, (seps["C"][0]/pixelSize, seps["C"][1]/pixelSize))
+    shiftedD = scint.shift(planet, (seps["D"][0]/pixelSize, seps["D"][1]/pixelSize))
+    shiftedE = scint.shift(planet, (seps["E"][0]/pixelSize, seps["E"][1]/pixelSize))
+
+    planets = shiftedB*10**(-mags[filt][0]/2.5) + shiftedC*10**(-mags[filt][1]/2.5) + shiftedD*10**(-mags[filt][2]/2.5) + shiftedE*10**(-mags[filt][3]/2.5)
+
+    return planets, mags, seps
 
 
 
@@ -339,6 +385,7 @@ if __name__ == "__main__":
     parser.add_argument("--clobber", action="store_true", default=False, help="overwrite output files (default: False)")
     parser.add_argument("--nonoise", action="store_true", default=False, help="to turn off noise sources (default: add noise)")
     parser.add_argument("--rms"    , type=int,            default=400,   help="select which OPD rms to use, if available (default: 400 nm)")
+    parser.add_argument("--planets", action="store_true", default=False, help="Inject HR8799 planets (default: False)")
 
     args = parser.parse_args()
 
@@ -355,9 +402,9 @@ if __name__ == "__main__":
             'vega':args.vega,
             'exptime':args.exptime,
             'clobber':args.clobber,
-            'nonoise':args.nonoise
+            'nonoise':args.nonoise,
+            'planets':args.planets
     }
-
 
     #-----------------------------------#
     # SET UP PATHS BASED ON ARGUMENTS:
@@ -374,9 +421,12 @@ if __name__ == "__main__":
     if args.rms!=400: 
         in_path += str(args.rms)+'nm/' #-Grid25pts/'
         out_path+= '_'+str(args.rms)+'nm'
+        if args.planets: out_path+="_Planets/"
     else:
         in_path +='/'
+        if args.planets: out_path+="_Planets"
         out_path+='/'
+
 
     print ' \nInput original PSFs: ',in_path.split("Dither-LOCI")[1]
     if os.path.isdir(in_path)==False: 
