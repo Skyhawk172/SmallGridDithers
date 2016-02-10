@@ -245,7 +245,7 @@ def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,v
 
 
 
-def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10., exptime=1.0, run=1, clobber=False, nonoise=False, planets=False, **kwargs):
+def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10., exptime=1.0, run=1, roll=0, clobber=False, nonoise=False, planets=False, **kwargs):
 
     # LOOP OVER ALL THE ORIGINAL IMAGES. SCALE THEM AND ADD NOISE SOURCES:
 
@@ -259,7 +259,7 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
         unocculted=glob.glob(in_path+"/*run"+str(runNumber)+"_"+"*Unocculted*"+"*.fits")
         hdu=pyfits.open(unocculted[0])
         planet=hdu[0].data * ncounts * exptime   
-        planets_img, planets_mags, planets_seps = addPlanets(spec.instr, spec.filt, planet)
+        planets_img, planets_mags, planets_seps = addPlanets(spec.instr, spec.filt, planet, -roll)
 
     for ifile in inputfiles:
         print '\n--> Processing', ifile
@@ -331,7 +331,7 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
 
 
 
-def addPlanets(instr, filt, planet):
+def addPlanets(instr, filt, planet, rotation):
     # VALUES FOR HR 8799, PLANETS B, C, D, and E:
     mags={"F1065C":[9.73, 9.12, 9.12, 15.0],
           "F1140C":[9.16, 8.82, 8.82, 15.0],
@@ -346,10 +346,31 @@ def addPlanets(instr, filt, planet):
         if filt=="F210M": pixelSize = 0.032
         else: pixelSize = 0.065
 
-    shiftedB = scint.shift(planet, (seps["B"][0]/pixelSize, seps["B"][1]/pixelSize))
-    shiftedC = scint.shift(planet, (seps["C"][0]/pixelSize, seps["C"][1]/pixelSize))
-    shiftedD = scint.shift(planet, (seps["D"][0]/pixelSize, seps["D"][1]/pixelSize))
-    shiftedE = scint.shift(planet, (seps["E"][0]/pixelSize, seps["E"][1]/pixelSize))
+    # ROTATE THE PLANETS AROUND TO AVOID BAR/4QPM:
+    if rotation != 0:
+        angle = rotation * np.pi/180.
+
+        delta0, alpha0=[], []
+        for key in sorted(seps):
+            delta0.append(seps[key][0])
+            alpha0.append(seps[key][1])
+
+        delta0=np.asarray(delta0)
+        alpha0=np.asarray(alpha0)
+
+        deltas= (alpha0*np.cos(angle) - delta0*np.sin(angle)) / pixelSize
+        alphas= (alpha0*np.sin(angle) + delta0*np.cos(angle)) / pixelSize
+        
+        shiftedB = scint.shift(planet, (alphas[0], deltas[0]) )
+        shiftedC = scint.shift(planet, (alphas[1], deltas[1]) )
+        shiftedD = scint.shift(planet, (alphas[2], deltas[2]) )
+        shiftedE = scint.shift(planet, (alphas[3], deltas[3]) )
+
+    else:
+        shiftedB = scint.shift(planet, (seps["B"][0]/pixelSize, seps["B"][1]/pixelSize))
+        shiftedC = scint.shift(planet, (seps["C"][0]/pixelSize, seps["C"][1]/pixelSize))
+        shiftedD = scint.shift(planet, (seps["D"][0]/pixelSize, seps["D"][1]/pixelSize))
+        shiftedE = scint.shift(planet, (seps["E"][0]/pixelSize, seps["E"][1]/pixelSize))
 
     planets = shiftedB*10**(-mags[filt][0]/2.5) + shiftedC*10**(-mags[filt][1]/2.5) + shiftedD*10**(-mags[filt][2]/2.5) + shiftedE*10**(-mags[filt][3]/2.5)
 
@@ -386,6 +407,7 @@ if __name__ == "__main__":
     parser.add_argument("--nonoise", action="store_true", default=False, help="to turn off noise sources (default: add noise)")
     parser.add_argument("--rms"    , type=int,            default=400,   help="select which OPD rms to use, if available (default: 400 nm)")
     parser.add_argument("--planets", action="store_true", default=False, help="Inject HR8799 planets (default: False)")
+    parser.add_argument("--roll"   , type=float,          default=0.,    help="Roll the planets clockwise in degrees (default: 0 deg.)")
 
     args = parser.parse_args()
 
@@ -403,7 +425,8 @@ if __name__ == "__main__":
             'exptime':args.exptime,
             'clobber':args.clobber,
             'nonoise':args.nonoise,
-            'planets':args.planets
+            'planets':args.planets,
+            'roll'   :args.roll
     }
 
     #-----------------------------------#

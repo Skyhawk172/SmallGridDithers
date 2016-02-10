@@ -27,18 +27,21 @@ although both can be modified on the command line (see below).  The PSF are all
 generated using [WebbPSF](http://www.stsci.edu/jwst/software/webbpsf).
 
 Command-line arguments (-- for optional):
-*  -h, --help        show this help message and exit
-*  -I INSTRUMENT     Instrument to use (MIRI or NIRCam)
-*  -f FILTER         Filter to use
-*  -mask MASK_CORON  Mask coron. to use
-*  -stop PUPIL_STOP  Pupil stop to use
-*  --rms RMS         Select OPD rms to use, if available (default: 136 nm)
-*  --noopd           Do not use any OPD (default: False)
-*  --jitter JITTER   Sigma Jitter (default: 0 mas)
-*  --fov FOV         Field of view (diam.; default=7.04 arcsecond)
-*  --nruns NRUNS     Number of SGD grids to generate (default: 1)
-*  --gstep GSTEP     SGD grid steps (default: 20 mas)
-*  --gnpts GNPTS     SGD square grid points (default: 9)
+
+| Argument     | Name      | Description                                      |
+|--------------|-----------|--------------------------------------------------|
+|-h, --help    |           | Show this help message and exit                  |
+|-I            |INSTRUMENT | Instrument to use (MIRI or NIRCam)               |
+|-f            |FILTER     | Filter to use                                    |
+|-mask         |MASK_CORON | Mask coron. to use                               |
+|-stop         |PUPIL_STOP | Pupil stop to use                                |
+|--rms         |RMS        | Select OPD rms to use, if available (default: 136 nm)|
+|--noopd       |           | Do not use any OPD (default: False)              |
+|--jitter      |JITTER     | Sigma Jitter (default: 0 mas)                    |
+|--fov         |FOV        | Field of view (diam.; default=7.04 arcsecond)    |
+|--nruns       |NRUNS      | Number of SGD grids to generate (default: 1)     |
+|--gstep       |GSTEP      | SGD grid steps (default: 20 mas)                 |
+|--gnpts       |GNPTS      | SGD square grid points (default: 9)              |
 
 
 ## 2. AddNoisetoPSF.py
@@ -56,24 +59,34 @@ hardcoded in the function "prepareSpectrum". The default values are 64, 109, and
 respectively. The user may need to change these values accordingly.
 
 Command-line arguments (-- for optional):
-*  -h, --help         show this help message and exit
-*  -I Instrument      JWST instrument
-*  -f FILTER          Filter to use
-*  -step STEP         Dither grid step size (default: 20 mas)
-*  -jitter JITTER     sigma Jitter (default: 0 mas)
-*  --webbpsf          use if images were created with WebbPSF
-*  --t T              effective temperature (default: Solar T=5800 K)
-*  --z Z              metallicity (default: Solar z=0)
-*  --g G              surface gravity (default: Solar log_g=4.44)
-*  --R R              radius of star (default: 1 Rsun )
-*  --dist DIST        distance to star parsec (default: 10 pc)
-*  --exptime EXPTIME  exposure time (default: 1 sec)
-*  --run RUN          run number (default: all)
-*  --vega             use Vega spectrum (default: False)
-*  --clobber          overwrite output files (default: False)
-*  --nonoise          to turn off noise sources (default: add noise)
-*  --rms RMS          select which OPD rms to use, if available (default: 400 nm)
 
+| Argument     | Name      | Description                                      |
+|--------------|-----------|--------------------------------------------------|
+|-h, --help    |           | show this help message and exit                  |
+|-I            |Instrument | JWST instrument                                  | 
+|-f            |FILTER     | filter to use                                    |
+|-step         |STEP       | dither grid step size (default: 20 mas)          |
+|-jitter       |JITTER     | sigma Jitter (default: 0 mas)                    |
+|--webbpsf     |           | use if images were created with WebbPSF          |
+|--t           |T          | effective temperature (default: Solar T=5800 K)  |
+|--z           |z          | metallicity (default: Solar z=0)                 |
+|--g           |G          | surface gravity (default: Solar log_g=4.44)      |
+|--R           |R          | radius of star (default: 1 Rsun )                |
+|--dist        |DIST       | distance to star parsec (default: 10 pc)         |
+|--exptime     |EXPTIME    | exposure time (default: 1 sec)                   |
+|--run         |RUN        | run number (default: all)                        |
+|--vega        |           | use Vega spectrum (default: False)               |
+|--clobber     |           | overwrite output files (default: False)          |
+|--nonoise     |           | to turn off noise sources (default: add noise)   |
+|--rms         |RMS        | select which OPD rms to use, if available (default: 400 nm)|
+|--planets     |           | Inject HR8799 planets (default: False)           |
+|--roll        |           | Roll the planets clockwise in degrees (default: 0 deg.)|
+
+Note: the --webbpsf flag is used for MIRI PSF generated with WebbPSF so that the
+Quantum efficiency as well as the Germanium and OTE transmission profiles can be
+applied. For MIRI PSF create with Mathematica or NIRCam PSF generated with
+WebbPSF, this is not necessary as these contributions are taken into account in
+the filter profiles included.
 
 ## 3. (ApplyLOCI.py)
 
