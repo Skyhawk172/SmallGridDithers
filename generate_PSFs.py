@@ -57,8 +57,8 @@ def set_sim_params(args):
     sigmaFSM= 2.0
 
 
-    if instr=='NIRCAM': img=NIRCam()
-    elif instr=='MIRI': img=MIRI()
+    if instr=='NIRCAM': img=webbpsf.NIRCam()
+    elif instr=='MIRI': img=webbpsf.MIRI()
 
     if filt not in img.filter_list:
         if instr == 'MIRI'  : print "\nFilter "+mask_coron+" not available. Select from: ",[f for f in img.filter_list if "C" in f[-1]],'\n'
