@@ -25,6 +25,7 @@ import webbpsf
 import numpy as np
 import pysynphot
 import pyfits
+import astropy
 import math
 import argparse, sys, os, logging, pkg_resources
 
@@ -229,10 +230,10 @@ def generate_PSF(img, outdir, nruns, x0, y0, grid_step, side, max_step, sigmaTA,
                 for j in xrange(njitter):
                     jitter_pos=np.array([np.random.normal(currentPointing[0],jitter),np.random.normal(currentPointing[1],jitter)])
 
-                    off_jitt       = np.sqrt(np.sum( jitter_pos**2 ) )/1000              #in arcseconds
-                    off_jitt_theta =-np.arctan2(jitter_pos[0],jitter_pos[1])*180/math.pi #in degrees
+                    off_jitt       = np.sqrt(np.sum( jitter_pos**2 ) )/1000              # arcseconds
+                    off_jitt_theta =-np.arctan2(jitter_pos[0],jitter_pos[1])*180/math.pi # degrees
                     img.options['source_offset_r']     = off_jitt                        # offset in arcseconds
-                    img.options['source_offset_theta'] = off_jitt_theta                  # degrees counterclockwise from instrumental +Y in the science fram
+                    img.options['source_offset_theta'] = off_jitt_theta                  # degrees counterclockwise from instrumental +Y in the science frame
 
                     tmp=img.calcPSF(source=src, fft_oversample=4, detector_oversample= 1, fov_arcsec=fovarcsec) #fov_pixels=fovpixels) 
                     sumPSF+=tmp[0].data
