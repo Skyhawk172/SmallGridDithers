@@ -44,8 +44,8 @@ def set_sim_params(args):
     if instr=='NIRCAM': lambda0=float(filt[1:4])/100
     elif instr=='MIRI': lambda0=float(filt[1:5])/100
     jitter= args.jitter 
-    grid_step=args.gridstep
-    gridpoints=args.gridNpts
+    grid_step=args.gstep
+    gridpoints=args.gnpts
     side=int(np.sqrt(gridpoints))
     max_step=np.floor(side/2)
     rms= args.rms 
