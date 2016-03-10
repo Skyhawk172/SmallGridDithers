@@ -122,7 +122,7 @@ def plot_TApositions():
     # PARSE POSITIONS OUT OF STRING AND CALCULATE MEAN OFFSET AND STD DEV.
     # AND PLOT INSET
     ###########################################################################
-    os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/MIRI/Dither-LOCI/Results/'+indir[:19])
+    os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/Dither-LOCI/Results/'+indir[:19])
     print "    Reading position files from ",indir[:19]
     pos_files=glob.glob('run*.txt')
 
@@ -330,7 +330,7 @@ colors = [  'b',   'g',   'r',  'm', 'y']     #color code for loop
 # GLOB FILES FOR ALL THE COMBINATIONS 
 # AVAILABLE IN THE CONTRAST FILES
 #############################################
-os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/MIRI/Dither-LOCI/Results/'+indir)
+os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/Dither-LOCI/Results/'+indir)
 #os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/CWG/SGD/'+indir)
 directory=os.getcwd()
 
@@ -435,7 +435,7 @@ else:
 
 if len(sys.argv)>2: plot_TApositions()
 
-os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/MIRI/Dither-LOCI/Results/'+indir)
+os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/Dither-LOCI/Results/'+indir)
 #os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/CWG/SGD/'+indir)
 print indir
 raw_input("Press enter to save PDF to '%s'" %filename)
