@@ -255,10 +255,13 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
     infiles=[i for i in listfiles if 'PSF' in i]
     inputfiles=[i for i in infiles if 'run'+str(runNumber)+'_' in i]
 
+
+    unocculted=glob.glob(in_path+"/*run"+str(runNumber)+"_"+"*Unocculted*"+"*.fits")
+    hdu0=pyfits.open(unocculted[0])
+    lyot_throughput = np.sum(hdu0[0].data)
+    print "lyot_throughput", np.sum(hdu0[0].data)
     if planets:
-        unocculted=glob.glob(in_path+"/*run"+str(runNumber)+"_"+"*Unocculted*"+"*.fits")
-        hdu=pyfits.open(unocculted[0])
-        planet=hdu[0].data * ncounts * exptime   
+        planet=hdu0[0].data * ncounts * exptime   
         planets_img, planets_mags, planets_seps = addPlanets(spec.instr, spec.filt, planet, -roll)
 
     for ifile in inputfiles:
@@ -313,7 +316,7 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
         string = "LAJOIE: Spectrum Teff= %d  Log g=%4.2f z=%5.2f R=%4.2f D=%d exptime=%d" %(Teff, logg, z, radius, distance, exptime)
         img._header.add_history(string)
         if planets and "ScienceTarget" in ifile:
-            string = "LAJOIE: Planets mags B, C, D, E: %5.2f %5.2f %5.2f %5.2f" %(planets_mags[filt][0], planets_mags[filt][1], planets_mags[filt][2], planets_mags[filt][3])
+            string = "LAJOIE: Planets mags B, C, D, E: %5.2f %5.2f %5.2f %5.2f" %(planets_mags[spec.filt][0], planets_mags[spec.filt][1], planets_mags[spec.filt][2], planets_mags[spec.filt][3])
             img._header.add_history(string)
             string = "LAJOIE: Planet B separation: %s " %(str(planets_seps["B"]))
             img._header.add_history(string)
@@ -329,13 +332,19 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
         except: print '  --> File Scaled_'+ifile+' already exists. Use --clobber to overwrite'
         del img
 
+    return lyot_throughput 
 
 
 def addPlanets(instr, filt, planet, rotation):
     # VALUES FOR HR 8799, PLANETS B, C, D, and E:
+    # - BOCCALETTI PASP PAPER
+    # - ApJ 795 : 133 Currie et al. 2015
     mags={"F1065C":[9.73, 9.12, 9.12, 15.0],
           "F1140C":[9.16, 8.82, 8.82, 15.0],
-          "F1550C":[9.02, 8.71, 8.71, 15.0] }
+          "F1550C":[9.02, 8.71, 8.71, 15.0],
+          "F210M" :[10.3, 9.45, 9.30, 9.30],
+          "F430M" :[10.3, 9.45, 9.30, 9.30],
+          "F460M" :[10.3, 9.45, 9.30, 9.30]}
 
     seps={"B":[0.706, -1.563], "C":[0.765, 0.558], "D":[-0.529, 0.323], "E":[-0.09, 0.366] }
 
@@ -482,9 +491,14 @@ if __name__ == "__main__":
     
     if args.run != 'all':  
         kwargs['run']=int(args.run)
-        addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
+        lyot_throughput = addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
     else:
         for i in xrange(1,nruns+1):
             kwargs['run']=i
-            addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
+            lyot_throughput = addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
 
+
+    with open(out_path+"/InputStar.txt", "w") as text_file:
+        text_file.write("Total count/sec: %f\n" % (scalefactor))
+        text_file.write("Distance: %f\n" % (args.dist))
+        text_file.write("Unocculted throughput:: %f\n" % (lyot_throughput))
