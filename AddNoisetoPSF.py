@@ -61,9 +61,8 @@ class Spectrum(object):
             print ' Using default Pysynphot Vega spectrum'
         else: 
             print self.getFiltername(), self.getSpectrumInfo()
-            self.star= S.Icat('phoenix',self.T,self.z,self.g) #FLAM surface flux units, i.e. ergs cm-2 s-1 A-1
+            self.star= S.Icat('ck04models',self.T,self.z,self.g) #FLAM surface flux units, i.e. ergs cm-2 s-1 A-1
             #star  = S.BlackBody(6000)
-            #star= S.Icat('phoenix',5800,0.,4.4) #FLAM surface flux units, i.e. ergs cm-2 s-1 A-1
             #self.star= self.star.renorm(self.j_v_abs,'vegamag',self.johnson_v) #renorm spectrum to (abs_mag, units system, band)        
         return self.star
 
@@ -216,11 +215,12 @@ def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,v
     star=spec.getSpectrum(Teff=Teff,z=z,logg=logg,vega=vega) # Returns Angstroms, Flam
 
     # SCALE FOR DISTANCE & CONVERT UNITS TO: photons s^-1 cm^-2 A^-1
-    if vega==False: star*=(radius*2.254e-8/distance)**2 #Distance in units of parsec
+    if vega==False:  star*=(radius*2.254e-8/distance)**2 #Distance in units of parsec
     star.convert("photlam") 
 
+
     # CREATE OBSERVATION (STAR times BANDPASS):
-    obs=S.Observation(star,bandpass) 
+    obs=S.Observation(star,bandpass, binset=star.wave) 
     #print 'units: ',obs.waveunits, obs.fluxunits
 
 
@@ -432,7 +432,7 @@ if __name__ == "__main__":
     #-----------------------------------#
     # SET UP PATHS BASED ON ARGUMENTS:
     #-----------------------------------#
-    path    = "/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/MIRI/Dither-LOCI/Results/"
+    path    = "/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/Dither-LOCI/Results/"
     in_path = path+instr+'/'+args.f.upper()+"/DitherStep"+args.step+"/Jitter"+args.jitter+"/Originals"
     out_path= path+instr+'/'+args.f.upper()+"/DitherStep"+args.step+"/Jitter"+args.jitter+"/"
 
@@ -476,6 +476,10 @@ if __name__ == "__main__":
     scalefactor, spectrum, xdim, ydim, ncmode = findCountRate(instr, filt, **kwargs)
     print "Scale factor phot s^-1 :", scalefactor
 
+    with open(out_path+"/InputStar.txt", "w") as text_file:
+        text_file.write("Total count/sec: %f\n" % (scalefactor))
+        text_file.write("Distance: %f\n" % (args.dist))
+    
     if args.run != 'all':  
         kwargs['run']=int(args.run)
         addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
