@@ -274,7 +274,10 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
             background = MY_BGLEVEL[img.instrument][img.filterName]
 
         # MULTIPLY ORIGINAL IMAGE BY NCOUNTS/SECOND:
-        img.__imul__( ncounts )            
+        img.__imul__( ncounts )
+        if "ScienceTarget" in ifile:
+            star_throughput = np.sum(img._data)
+            print "star_throughput",star_throughput, ncounts
 
         # MULTIPLY IMAGE BY EXPOSURE TIME:
         img.exptime=exptime
@@ -332,7 +335,7 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
         except: print '  --> File Scaled_'+ifile+' already exists. Use --clobber to overwrite'
         del img
 
-    return lyot_throughput 
+    return star_throughput, lyot_throughput 
 
 
 def addPlanets(instr, filt, planet, rotation):
@@ -491,14 +494,14 @@ if __name__ == "__main__":
     
     if args.run != 'all':  
         kwargs['run']=int(args.run)
-        lyot_throughput = addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
+        star_throughput, lyot_throughput = addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
     else:
         for i in xrange(1,nruns+1):
             kwargs['run']=i
-            lyot_throughput = addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
+            star_throughput, lyot_throughput = addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
 
 
     with open(out_path+"/InputStar.txt", "w") as text_file:
-        text_file.write("Total count/sec: %f\n" % (scalefactor))
+        text_file.write("Total count/sec: %f\n" % (scalefactor)) #star_throughput))
         text_file.write("Distance: %f\n" % (args.dist))
         text_file.write("Unocculted throughput:: %f\n" % (lyot_throughput))
