@@ -187,23 +187,8 @@ class Spectrum(object):
 
 
 def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,vega=False,exptime=1.0,webbpsf=False,**kwargs):
+
     if instr=='NIRCam': filt=filt[:5] # Strip the mask string off, e.g. F210M-MASK210R
-    if instr=='MIRI': 
-        xdim,ydim = (64,64)
-        nircamMode = None
-    elif instr=='NIRCam':
-        nircamMode = None
-        try:
-            w_fil = int(filt[1:-1])
-        except:
-            print filterName, 'has no wavelength info'
-            sys.exit()
-        if w_fil >= 235:
-            xdim,ydim = (109,109)
-            nircamMode = 'long'
-        else:
-            xdim,ydim = (222,222)
-            nircamMode = 'short'
 
     # CREATE SPECTRUM OBJECT:
     spec=Spectrum(instr,filt)
@@ -241,11 +226,23 @@ def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,v
     # INTEGRATE TOTAL NUMBER OF PHOTONS OVER BANDPASS:
     ncounts=np.trapz(obs.flux,obs.wave)*DefaultSettings.JWSTREFS['area']  #multiply by collecting area
 
-    return ncounts, spec, xdim, ydim, nircamMode
+    return ncounts, spec
 
 
 
-def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10., exptime=1.0, run=1, roll=0, clobber=False, nonoise=False, planets=False, **kwargs):
+def addNoise(spec, ncounts, in_path, out_path, Teff=5800.,z=0.0,logg=4.44, radius=1.,distance=10., 
+             exptime=1.0, run=1, roll=0, clobber=False, nonoise=False, planets=False, vega=False, **kwargs):
+
+    if spec.instr=='MIRI': nircamMode = None
+    elif spec.instr=='NIRCam':
+        try:
+            w_fil = int(spec.filt[1:-1])
+            if w_fil >= 235: nircamMode = 'long'
+            else: nircamMode = 'short'
+        except:
+            print spec.filt, 'has no wavelength info'
+            sys.exit()
+
 
     # LOOP OVER ALL THE ORIGINAL IMAGES. SCALE THEM AND ADD NOISE SOURCES:
 
@@ -255,14 +252,16 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
     infiles=[i for i in listfiles if 'PSF' in i]
     inputfiles=[i for i in infiles if 'run'+str(runNumber)+'_' in i]
 
-
     unocculted=glob.glob(in_path+"/*run"+str(runNumber)+"_"+"*Unocculted*"+"*.fits")
     hdu0=pyfits.open(unocculted[0])
-    lyot_throughput = np.sum(hdu0[0].data)
-    print "lyot_throughput", np.sum(hdu0[0].data)
+    xdim, ydim = hdu0[0].data.shape
+
+
+    # ADD PLANETS IF REQUESTED:
     if planets:
         planet=hdu0[0].data * ncounts * exptime   
         planets_img, planets_mags, planets_seps = addPlanets(spec.instr, spec.filt, planet, -roll)
+
 
     for ifile in inputfiles:
         print '\n--> Processing', ifile
@@ -273,8 +272,10 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
             print '  Filter '+img.filterName+" not in DefaultSettings.py for background levels. Using Lajoie's numbers."
             background = MY_BGLEVEL[img.instrument][img.filterName]
 
+
         # MULTIPLY ORIGINAL IMAGE BY NCOUNTS/SECOND:
         img.__imul__( ncounts )
+
         if "ScienceTarget" in ifile:
             star_throughput = np.sum(img._data)
             print "star_throughput",star_throughput, ncounts
@@ -314,20 +315,23 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
             img.__simplyAdd__(-background*exptime)
 
 
+
         # UPDATE IMAGE HEADER & SAVE:
-        img._header.add_history("LAJOIE: Spectrum scaled using AddNoisetoPSF.py")
-        string = "LAJOIE: Spectrum Teff= %d  Log g=%4.2f z=%5.2f R=%4.2f D=%d exptime=%d" %(Teff, logg, z, radius, distance, exptime)
+        img._header.add_history("Spectrum scaled using AddNoisetoPSF.py")
+        if vega: string = "%s: Using Pysynphot spectrum of Vega, exptime=%d" %(os.getlogin().upper(), exptime)
+        else:    string = "%s: Spectrum Teff= %d  Log g=%4.2f z=%5.2f R=%4.2f D=%d exptime=%d" %(os.getlogin().upper(), Teff, logg, z, radius, distance, exptime)
         img._header.add_history(string)
+
         if planets and "ScienceTarget" in ifile:
-            string = "LAJOIE: Planets mags B, C, D, E: %5.2f %5.2f %5.2f %5.2f" %(planets_mags[spec.filt][0], planets_mags[spec.filt][1], planets_mags[spec.filt][2], planets_mags[spec.filt][3])
+            string = "%s: Planets mags B, C, D, E: %5.2f %5.2f %5.2f %5.2f" %(os.getlogin().upper(), planets_mags[spec.filt][0], planets_mags[spec.filt][1], planets_mags[spec.filt][2], planets_mags[spec.filt][3])
             img._header.add_history(string)
-            string = "LAJOIE: Planet B separation: %s " %(str(planets_seps["B"]))
+            string = "%s: Planet B separation: %s " %(os.getlogin().upper(), str(planets_seps["B"]))
             img._header.add_history(string)
-            string = "LAJOIE: Planet C separation: %s " %(str(planets_seps["C"]))
+            string = "%s: Planet C separation: %s " %(os.getlogin().upper(), str(planets_seps["C"]))
             img._header.add_history(string)
-            string = "LAJOIE: Planet D separation: %s " %(str(planets_seps["D"]))
+            string = "%s: Planet D separation: %s " %(os.getlogin().upper(), str(planets_seps["D"]))
             img._header.add_history(string)
-            string = "LAJOIE: Planet E separation: %s " %(str(planets_seps["E"]))
+            string = "%s: Planet E separation: %s " %(os.getlogin().upper(), str(planets_seps["E"]))
             img._header.add_history(string)
         try: 
             hdu=astropy.io.fits.PrimaryHDU(data=img._data, header=img._header)
@@ -335,7 +339,8 @@ def addnoise(spec, ncounts, in_path, out_path, xdim, ydim, nircamMode, Teff=5800
         except: print '  --> File Scaled_'+ifile+' already exists. Use --clobber to overwrite'
         del img
 
-    return star_throughput, lyot_throughput 
+    return star_throughput
+
 
 
 def addPlanets(instr, filt, planet, rotation):
@@ -384,6 +389,8 @@ def addPlanets(instr, filt, planet, rotation):
         shiftedD = scint.shift(planet, (seps["D"][0]/pixelSize, seps["D"][1]/pixelSize))
         shiftedE = scint.shift(planet, (seps["E"][0]/pixelSize, seps["E"][1]/pixelSize))
 
+
+    # SCALE PLANET IMAGE BY MAGNITUDE DIFFERENCE:
     planets = shiftedB*10**(-mags[filt][0]/2.5) + shiftedC*10**(-mags[filt][1]/2.5) + shiftedD*10**(-mags[filt][2]/2.5) + shiftedE*10**(-mags[filt][3]/2.5)
 
     return planets, mags, seps
@@ -454,8 +461,8 @@ if __name__ == "__main__":
     if args.nonoise==True: out_path+='_NoNoise'
 
     if args.rms!=400: 
-        in_path += str(args.rms)+'nm/' #-Grid25pts/'
-        out_path+= '_'+str(args.rms)+'nm'
+        in_path += str(args.rms)+'nm/' #_WebbPSF/' #-Grid25pts/'
+        out_path+= '_'+str(args.rms)+'nm' #_WebbPSF'
         if args.planets: out_path+="_Planets/"
     else:
         in_path +='/'
@@ -485,23 +492,19 @@ if __name__ == "__main__":
     #-----------------------------------#
     # CONVERSION OF PSFs:
     #-----------------------------------#
-    scalefactor, spectrum, xdim, ydim, ncmode = findCountRate(instr, filt, **kwargs)
+    scalefactor, spectrum = findCountRate(instr, filt, **kwargs)
     print "Scale factor phot s^-1 :", scalefactor
-
-    with open(out_path+"/InputStar.txt", "w") as text_file:
-        text_file.write("Total count/sec: %f\n" % (scalefactor))
-        text_file.write("Distance: %f\n" % (args.dist))
     
     if args.run != 'all':  
         kwargs['run']=int(args.run)
-        star_throughput, lyot_throughput = addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
+        star_throughput = addNoise(spectrum, scalefactor, in_path,out_path, **kwargs)
     else:
         for i in xrange(1,nruns+1):
             kwargs['run']=i
-            star_throughput, lyot_throughput = addnoise(spectrum, scalefactor, in_path,out_path, xdim, ydim, ncmode, **kwargs)
+            star_throughput = addNoise(spectrum, scalefactor, in_path,out_path, **kwargs)
 
 
     with open(out_path+"/InputStar.txt", "w") as text_file:
         text_file.write("Total count/sec: %f\n" % (scalefactor)) #star_throughput))
         text_file.write("Distance: %f\n" % (args.dist))
-        text_file.write("Unocculted throughput:: %f\n" % (lyot_throughput))
+
