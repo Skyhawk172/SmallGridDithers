@@ -30,6 +30,16 @@ import matplotlib.pyplot as P
 import pyfits, os, glob, re, sys
 from matplotlib.ticker import MultipleLocator
 
+import photutils
+from photutils import CircularAperture
+from photutils import aperture_photometry
+
+import scipy
+from scipy import ndimage
+
+
+
+
 def azimuthalAverage(image, center=None, stddev=False, returnradii=False, return_nr=False, 
         binsize=0.5, weights=None, steps=False, interpnan=False, left=None, right=None):
     """
@@ -271,7 +281,15 @@ def plot_contrast_curves(x,av_prof,xLoverD,plusone,minusone,max_prof,max_gain):
 
 
 
+def aperturephot(data, lambdaD, pixelsize):
+    
+    photrad   = 1.5 * lambdaD/pixelSize
+    positions = [ scipy.ndimage.measurements.center_of_mass(data) ]
+    apertures = CircularAperture(positions, r=photrad) 
 
+    phot_table = aperture_photometry(data, apertures, method='subpixel')
+
+    return phot_table["aperture_sum"]
 
 
 
@@ -338,10 +356,10 @@ if 'Originals' not in indir: prefix='Scaled_'
 else: prefix=''
 
 
-#input_Unocculted=    files=glob.glob('*run1_Unocculted*.fits')
-#hdu=pyfits.open(input_Unocculted[0])
-#unocculted=hdu[0].data
-#hdu.close()
+input_Unocculted=glob.glob('*run1_Unocculted*.fits')
+hdu=pyfits.open(input_Unocculted[0])
+unocculted=hdu[0].data
+hdu.close()
 
 
 JWSTdiam = 6.61099137008
@@ -360,7 +378,7 @@ for kw in reversed(keywords):
 if len(keywords)==0: sys.exit()
 
 
-###############################
+################################
 # CALCULATE AZIMUTHAL PROFILES
 ################################
 max_gain=0
@@ -377,18 +395,23 @@ for kw in keywords:
         hdu = pyfits.open(image)
         data=hdu[0].data
         hdu.close()
-        ##################################################
-        # NOW DONE IN MATHEMATICA REDUCTION NOTEBOOK
-        #data=data/unocculted.max()
-        ##################################################
-        x,rad_prof[i]=azimuthalAverage(data,binsize=binsize,stddev=True,interpnan=True,returnradii=True)
 
+        x,rad_prof[i]=azimuthalAverage(data,binsize=binsize,stddev=True,interpnan=True,returnradii=True)
         #x,rad_prof[i]=azimuthalAverage(data,binsize=binsize,stddev=False,interpnan=True,returnradii=True)
+
+        # NORMALIZE TO GET CONTRAST: 
+        # rad_prof[i] = rad_prof[i]/np.max(unocculted)
+        
+        # OR PERFORM APERTURE PHOTOMETRY ON UNOCCULTED STAR:
+        aperphot = aperturephot(unocculted, lambdaD, pixelSize)
+        rad_prof[i] = rad_prof[i]/aperphot
+
+
+
 
     print '\n'
 
     #get average of the stddev for each radial bin:
-    #av_prof = nsigmas* ( np.mean(rad_prof,axis=0) )
     av_prof = nsigmas* ( np.mean(rad_prof,axis=0) )
     std_prof= nsigmas* np.std( rad_prof,axis=0,dtype=np.float64)
     min_prof= nsigmas* np.abs( np.min( rad_prof,axis=0) )
