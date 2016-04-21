@@ -289,7 +289,7 @@ def aperturephot(data, lambdaD, pixelsize):
 
     phot_table = aperture_photometry(data, apertures, method='subpixel')
 
-    return phot_table["aperture_sum"]
+    return phot_table["aperture_sum"]/(np.pi*photrad**2) #divide by aperture area in pixels
 
 
 
@@ -320,26 +320,10 @@ if "F1550C" in indir: lambda0=15.50
 if "MIRI" in sys.argv[1]: 
     instr     = 'MIRI'
     pixelSize = 0.11
-    dim       = 64
 elif "NIRCam" in sys.argv[1]: 
     instr    = 'NIRCAM'
     pixelSize= 0.032 if lambda0<=2.35 else 0.065
-    dim      =   222 if lambda0<=2.35 else 109
-
     
-binsize=1.1 #2.5
-y, x = np.indices( (dim,dim) )
-center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
-nbins = int((np.round((x-center[0]).max() / binsize)+1)) #CPL: changed the max bin and added int()
-
-nsigmas=5
-
-xcutoff0=1.5 #where to start drawing lines and add the grey rectangle
-xmin=0
-ymin=-8.
-ymax= -2.
-keywords=['CLAS','LOCI5pt','LOCI','LOCI25pts']#,'BOCC'] #different maps already generated
-colors = [  'b',   'g',   'r',  'm', 'y']     #color code for loop
 
 
 
@@ -360,10 +344,27 @@ input_Unocculted=glob.glob('*run1_Unocculted*.fits')
 hdu=pyfits.open(input_Unocculted[0])
 unocculted=hdu[0].data
 hdu.close()
+dim = unocculted.shape[0]
+
+
+binsize= 1.1 #2.5
+y, x = np.indices( (dim,dim) )
+center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
+nbins = int((np.round((x-center[0]).max() / binsize)+1)) #CPL: changed the max bin and added int()
+
+
+nsigmas=5
+
+xcutoff0=1.5 #where to start drawing lines and add the grey rectangle
+xmin=0
+ymin=-8.
+ymax= -2.
+keywords=['CLAS','LOCI5pt','LOCI','LOCI25pts']#,'BOCC'] #different maps already generated
+colors = [  'b',   'g',   'r',  'm', 'y']     # color code for loop
 
 
 JWSTdiam = 6.61099137008
-lambdaD=lambda0*1e-6/JWSTdiam *180/pi*3600 #in arcseconds
+lambdaD=lambda0*1e-6/JWSTdiam *180/pi*3600 # in arcseconds
 
 
 if 'LOCI' in sys.argv or 'CLAS' in sys.argv or 'BOCC' in sys.argv: keywords=[sys.argv[-1]]
@@ -396,28 +397,27 @@ for kw in keywords:
         data=hdu[0].data
         hdu.close()
 
-        x,rad_prof[i]=azimuthalAverage(data,binsize=binsize,stddev=True,interpnan=True,returnradii=True)
-        #x,rad_prof[i]=azimuthalAverage(data,binsize=binsize,stddev=False,interpnan=True,returnradii=True)
+        x,rad_prof[i] = azimuthalAverage(data, binsize=binsize, stddev=True, interpnan=True, returnradii=True)
+        #x,rad_prof[i] = azimuthalAverage(data, binsize=binsize, stddev=False, interpnan=True, returnradii=True)
 
         # NORMALIZE TO GET CONTRAST: 
-        # rad_prof[i] = rad_prof[i]/np.max(unocculted)
+        # rad_prof[i] = rad_prof[i]/np.max(OR)
         
-        # OR PERFORM APERTURE PHOTOMETRY ON UNOCCULTED STAR:
+        # unocculted PERFORM APERTURE PHOTOMETRY ON UNOCCULTED STAR:
         aperphot = aperturephot(unocculted, lambdaD, pixelSize)
-        rad_prof[i] = rad_prof[i]/aperphot
-
-
+        rad_prof[i] = rad_prof[i]/aperphot #already divided by number of pixels in aperture
 
 
     print '\n'
 
-    #get average of the stddev for each radial bin:
+    # GET AVERAGE OF THE STDDEV FOR EACH RADIAL BIN:
     av_prof = nsigmas* ( np.mean(rad_prof,axis=0) )
     std_prof= nsigmas* np.std( rad_prof,axis=0,dtype=np.float64)
     min_prof= nsigmas* np.abs( np.min( rad_prof,axis=0) )
     max_prof= nsigmas* np.abs( np.max( rad_prof,axis=0) )
 
-    if kw=='CLAS': av_prof_CLAS=av_prof #save classical subtraction profile for normalization
+    #SAVE CLASSICAL SUBTRACTION PROFILE FOR GAIN CALCULATION:
+    if kw=='CLAS': av_prof_CLAS=av_prof 
 
     plusone =av_prof + std_prof
     minusone=av_prof - std_prof
