@@ -113,8 +113,6 @@ class Spectrum(object):
         self.bandpass = S.spectrum.ArraySpectralElement(throughput=self.filt_thru, wave=self.filt_wave, waveunits='angstroms')       
         return self.bandpass 
 
-
-
     def getMIRI_QE(self): 
         try: self.ifile= open('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/MIRI/filtersCoro/MIRI_QE.csv', 'rU')
         except: 
@@ -141,7 +139,6 @@ class Spectrum(object):
         self.bandpass = S.spectrum.ArraySpectralElement(throughput=self.filt_thru,wave=self.filt_wave, waveunits='angstroms')       
         return self.bandpass 
 
-
     def getMIRI_OTE_transmission(self):
         #5 to 30 microns; convert to angstroms
         waves = np.arange(5,30+1,0.5)*1e4
@@ -155,7 +152,6 @@ class Spectrum(object):
         self.bandpass = S.spectrum.ArraySpectralElement(throughput=self.filt_thru,wave=self.filt_wave, waveunits='angstroms') 
 
         return self.bandpass
-
 
     def getMIRI_Germanium(self): 
         try: self.ifile= open('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/MIRI/filtersCoro/Germanium.csv', 'rU')
@@ -185,19 +181,18 @@ class Spectrum(object):
 
 
 
-
-def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,vega=False,exptime=1.0,webbpsf=False,**kwargs):
+def findCountRate(instr, filt, Teff=5800., z=0.0, logg=4.44, radius=1., distance=10., vega=False, webbpsf=False, **kwargs):
 
     if instr=='NIRCam': filt=filt[:5] # Strip the mask string off, e.g. F210M-MASK210R
 
     # CREATE SPECTRUM OBJECT:
-    spec=Spectrum(instr,filt)
+    spec=Spectrum(instr, filt)
 
     # CREATE FILTER BANDPASS FOR FILTER NAME:
     bandpass=spec.getBandpass()  
 
     # CREATE SPECTRUM BASED ON Teff, Z, and LOGG:
-    star=spec.getSpectrum(Teff=Teff,z=z,logg=logg,vega=vega) # Returns Angstroms, Flam
+    star=spec.getSpectrum(Teff=Teff, z=z, logg=logg, vega=vega) # Returns Angstroms, Flam
 
     # SCALE FOR DISTANCE & CONVERT UNITS TO: photons s^-1 cm^-2 A^-1
     if vega==False:  star*=(radius*2.254e-8/distance)**2 #Distance in units of parsec
@@ -233,6 +228,24 @@ def findCountRate(instr,filt,Teff=5800.,z=0.0,logg=4.44,radius=1.,distance=10.,v
 def addNoise(spec, ncounts, in_path, out_path, Teff=5800.,z=0.0,logg=4.44, radius=1.,distance=10., 
              exptime=1.0, run=1, roll=0, clobber=False, nonoise=False, planets=False, vega=False, **kwargs):
 
+    # FIRST, FIND FILES MATCHING RUN NUMBER:
+    runNumber=run
+    string='run'+str(runNumber)+'_'
+    listfiles=os.listdir(in_path)
+    infiles=[i for i in listfiles if 'PSF' in i]
+    inputfiles=[i for i in infiles if 'run'+str(runNumber)+'_' in i]
+
+    # SECOND, OPEN UNOCCULTED FILE TO GET DIMENSIONS IMAGE:
+    unocculted=glob.glob(in_path+"/*run"+str(runNumber)+"_"+"*Unocculted*"+"*.fits")
+    hdu0=pyfits.open(unocculted[0])
+    xdim, ydim = hdu0[0].data.shape
+
+    # THIRD, IF PLANETS=TRUE, CREATE IMAGE WITH ALL OF THEM:
+    if planets:
+        planet=hdu0[0].data * ncounts * exptime   
+        planets_img, planets_mags, planets_seps = addPlanets(spec.instr, spec.filt, planet, -roll)
+
+    # FOURTH, SOME BOOKKEEPING FOR INSTRUMENTS:
     if spec.instr=='MIRI': nircamMode = None
     elif spec.instr=='NIRCam':
         try:
@@ -244,25 +257,7 @@ def addNoise(spec, ncounts, in_path, out_path, Teff=5800.,z=0.0,logg=4.44, radiu
             sys.exit()
 
 
-    # LOOP OVER ALL THE ORIGINAL IMAGES. SCALE THEM AND ADD NOISE SOURCES:
-
-    runNumber=run
-    string='run'+str(runNumber)+'_'
-    listfiles=os.listdir(in_path)
-    infiles=[i for i in listfiles if 'PSF' in i]
-    inputfiles=[i for i in infiles if 'run'+str(runNumber)+'_' in i]
-
-    unocculted=glob.glob(in_path+"/*run"+str(runNumber)+"_"+"*Unocculted*"+"*.fits")
-    hdu0=pyfits.open(unocculted[0])
-    xdim, ydim = hdu0[0].data.shape
-
-
-    # ADD PLANETS IF REQUESTED:
-    if planets:
-        planet=hdu0[0].data * ncounts * exptime   
-        planets_img, planets_mags, planets_seps = addPlanets(spec.instr, spec.filt, planet, -roll)
-
-
+    # FIFTH, LOOP OVER ALL THE ORIGINAL IMAGES TO SCALE THEM AND ADD NOISE SOURCES:
     for ifile in inputfiles:
         print '\n--> Processing', ifile
         img= JwstImage.JwstImage.FromFitsFile(in_path+ifile,instrument=spec.instr,filterName=spec.filt,out_x=xdim,out_y=ydim,in_path=in_path,out_path='.')
@@ -316,7 +311,7 @@ def addNoise(spec, ncounts, in_path, out_path, Teff=5800.,z=0.0,logg=4.44, radiu
 
 
 
-        # UPDATE IMAGE HEADER & SAVE:
+        # LASTLY, UPDATE IMAGE HEADER & SAVE IMAGES:
         img._header.add_history("Spectrum scaled using AddNoisetoPSF.py")
         if vega: string = "%s: Using Pysynphot spectrum of Vega, exptime=%d" %(os.getlogin().upper(), exptime)
         else:    string = "%s: Spectrum Teff= %d  Log g=%4.2f z=%5.2f R=%4.2f D=%d exptime=%d" %(os.getlogin().upper(), Teff, logg, z, radius, distance, exptime)
@@ -345,8 +340,8 @@ def addNoise(spec, ncounts, in_path, out_path, Teff=5800.,z=0.0,logg=4.44, radiu
 
 def addPlanets(instr, filt, planet, rotation):
     # VALUES FOR HR 8799, PLANETS B, C, D, and E:
-    # - BOCCALETTI PASP PAPER
-    # - ApJ 795 : 133 Currie et al. 2015
+    # 1) BOCCALETTI PASP PAPER
+    # 2) ApJ 795 : 133 Currie et al. 2015
     mags={"F1065C":[9.73, 9.12, 9.12, 15.0],
           "F1140C":[9.16, 8.82, 8.82, 15.0],
           "F1550C":[9.02, 8.71, 8.71, 15.0],
