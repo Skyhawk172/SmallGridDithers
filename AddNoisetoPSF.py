@@ -14,6 +14,17 @@
 # The resulting coronagraphic images can then be averaged
 # azimuthally to draw contrast maps using AzimuthalAverage.py
 #
+# WHAT: Class Spectrum: calculate Pysynphot spectrum/bandpass/observation
+#                       based on input parameters.
+#
+#       Method addPlanets: scale image to planet magnitude and
+#                          add on top of stellar image.
+#
+#       Method addNoise: add various sources of noise to image.
+#
+#       Method findCountRate: find count rate from star based on 
+#                             input paratemeters.
+#
 # HOW: python try_pysynphotV2.py --help
 #
 # WHO : C-P Lajoie STScI
@@ -198,11 +209,9 @@ def findCountRate(instr, filt, Teff=5800., z=0.0, logg=4.44, radius=1., distance
     if vega==False:  star*=(radius*2.254e-8/distance)**2 #Distance in units of parsec
     star.convert("photlam") 
 
-
     # CREATE OBSERVATION (STAR times BANDPASS):
     obs=S.Observation(star,bandpass, binset=star.wave) 
     #print 'units: ',obs.waveunits, obs.fluxunits
-
 
     # ADD QE/GERMANIUM/OTE TRANSMISSION TO OBSERVATION:
     if webbpsf:
@@ -216,7 +225,6 @@ def findCountRate(instr, filt, Teff=5800., z=0.0, logg=4.44, radius=1., distance
             obs     = S.Observation(obs,bp_OTE)
         else: pass # FOR NIRCam, QE/OTE PROFILES ARE INCLUDED IN FILTER TRANSMISSION CURVES
     else: pass     # FOR IMAGES CREATED WITH MATHEMATICA, QE/GERMANIUM/OTE ARE ALREADY INCLUDED
-
 
     # INTEGRATE TOTAL NUMBER OF PHOTONS OVER BANDPASS:
     ncounts=np.trapz(obs.flux,obs.wave)*DefaultSettings.JWSTREFS['area']  #multiply by collecting area
@@ -245,9 +253,8 @@ def addNoise(spec, ncounts, in_path, out_path, Teff=5800.,z=0.0,logg=4.44, radiu
         planet=hdu0[0].data * ncounts * exptime   
         planets_img, planets_mags, planets_seps = addPlanets(spec.instr, spec.filt, planet, -roll)
 
-    # FOURTH, SOME BOOKKEEPING FOR INSTRUMENTS:
-    if spec.instr=='MIRI': nircamMode = None
-    elif spec.instr=='NIRCam':
+    # FOURTH, SOME BOOKKEEPING FOR NIRCam:
+    if spec.instr=='NIRCam':
         try:
             w_fil = int(spec.filt[1:-1])
             if w_fil >= 235: nircamMode = 'long'
@@ -255,7 +262,6 @@ def addNoise(spec, ncounts, in_path, out_path, Teff=5800.,z=0.0,logg=4.44, radiu
         except:
             print spec.filt, 'has no wavelength info'
             sys.exit()
-
 
     # FIFTH, LOOP OVER ALL THE ORIGINAL IMAGES TO SCALE THEM AND ADD NOISE SOURCES:
     for ifile in inputfiles:
