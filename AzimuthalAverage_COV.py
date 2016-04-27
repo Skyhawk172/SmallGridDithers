@@ -1,7 +1,9 @@
 ##########################################################################
 # WHAT: AzimuthalAverage_COV.py
 #      
-#       This is a modified and lighter version of AzimuthalAverage_SGD.py
+#       This is a modified and lighter version of AzimuthalAverage_SGD.py:
+#       The noise is not calculated on each image but rather from the
+#       covariance matrix of all the images.
 #
 #       Calculates the noise matrix from all the contrast maps in the 
 #       input folder according to the JWST ETC (Kyle van Gorkom). The 
@@ -140,8 +142,8 @@ def azimuthalAverage(image, center=None, stddev=False, returnradii=False, return
         return radial_prof
 
 
-def plot_contrast(instr, filt, lambda0, x, av_prof, nsig, kw):
-    print instr
+
+def plot_contrast(instr, filt, lambda0, r, av_prof, nsig, kw):
     fig ,(ax,ax2)  = P.subplots(2,figsize=( (11,8) ) )
 
     # size of input images (7.04 arcseconds)
@@ -150,16 +152,15 @@ def plot_contrast(instr, filt, lambda0, x, av_prof, nsig, kw):
 
     JWSTdiam = 6.61099137008
     lambdaD=lambda0*1e-6/JWSTdiam *180/np.pi*3600.  # in arcseconds
-    xLoverD = x / (lambdaD/pixelSize)
-    xmax=np.max(xLoverD)
+    rLoverD = r / (lambdaD/pixelSize)
+    LDmax=np.max(rLoverD)
 
     # PLOT PROFILES AND RELATIVE GAIN:
-    arcseconds = x*pixelSize
+    arcseconds = r*pixelSize
     for i in xrange(len(kw)):
-        ax.plot(x*pixelSize, np.log10(nsig*av_prof[i]),'-', label=kw[i])
+        ax.plot(arcseconds, np.log10(nsig*av_prof[i]),'-', label=kw[i])
         if i>0: ax2.plot(arcseconds, av_prof[0]/av_prof[i])
         print kw[i],"\n",np.log10(av_prof[i])
-
 
     # PLOT AXIS + LEGEND:
     ax.legend(loc=1)
@@ -178,9 +179,9 @@ def plot_contrast(instr, filt, lambda0, x, av_prof, nsig, kw):
     ax2.grid(True)
 
     axtop = ax.twiny()
-    axtop.set_xticks(np.arange(0., xmax, int(np.ceil(xmax)/10.)))    
+    axtop.set_xticks(np.arange(0., LDmax, int(np.ceil(LDmax)/10.)))    
     axtop.set_xlabel('Arcsec')
-    axtop.set_xlim(0.,xmax)
+    axtop.set_xlim(0.,LDmax)
     axtop.set_xlabel(r"$\lambda/D$ (at %5.2f $\mu$m)" %lambda0)
 
     # SAVE FIGURE:
@@ -189,11 +190,30 @@ def plot_contrast(instr, filt, lambda0, x, av_prof, nsig, kw):
     print '   --> Saving to file',filename
     P.savefig(filename)
 
-
-
     return 
 
 
+
+
+def calcNoise(files, npix, aperture):
+
+    nfiles = len(files)
+
+    images = np.empty( (nfiles, npix) )
+    for i in xrange(nfiles):
+        image=files[i]
+        print i+1,
+        hdu = pyfits.open(image)
+        images[i] = hdu[0].data.flatten()
+        hdu.close()
+
+    images        = images.T
+    covmatrix     = images.dot(images.T)/(nfiles-1)
+    A             = get_aperture(aperture)
+    noise_matrix  = A.dot(covmatrix.dot(A.T))
+    noise         = np.sqrt( np.diag(noise_matrix) ).reshape( (dim,dim) )
+
+    return noise
 
 
 
@@ -229,13 +249,11 @@ if __name__ == "__main__":
 
     # size of input images (7.04 arcseconds)
     if "MIRI" in indir:     instr = 'MIRI'
-    elif "NIRCam" in indir: instr = 'NIRCAM'
-        
+    elif "NIRCam" in indir: instr = 'NIRCam'
 
     os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/Dither-LOCI/Results/'+indir)
     #os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/CWG/SGD/'+indir)
     directory=os.getcwd()
-
 
     input_Unocculted=glob.glob('*run1_Unocculted*.fits')
     hdu=pyfits.open(input_Unocculted[0])
@@ -249,13 +267,13 @@ if __name__ == "__main__":
     radius = 4
     aperture = np.array([ [1. if (np.sqrt( (i-xmid)**2 + (j-ymid)**2) < radius) else 0. for i in xrange(dim)] for j in xrange(dim)])
     psf_aper = np.convolve( unocculted.flatten(), aperture.flatten() )
-
+    
     binsize= 1.0 
     y, x = np.indices( (dim,dim) )
     center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
     nbins = int((np.round((x-center[0]).max() / binsize)+1)) #CPL: changed the max bin and added int()
 
-    keywords=['CLAS','LOCI','LOCI5pt','LOCI25pts']#,'BOCC'] #different maps already generated
+    keywords=['CLAS','LOCI','LOCI5pt','LOCI25pts','BOCC'] #different maps already generated
     if 'LOCI' in sys.argv or 'CLAS' in sys.argv or 'BOCC' in sys.argv: keywords=[sys.argv[-1]]
 
 
@@ -275,24 +293,11 @@ if __name__ == "__main__":
         
         if nfiles==0: 
             print '      Error: no %s contrast maps found\n' %kw
-
         else: 
             types.append(kw)
             print '      Processing %s files #:'%kw,
 
-            images = np.empty( (nfiles, npix) )
-            for i in xrange(nfiles):
-                image=files[i]
-                print i+1,
-                hdu = pyfits.open(image)
-                images[i] =  hdu[0].data.flatten()
-                hdu.close()
-
-            images        = images.T
-            covmatrix     = images.dot(images.T)/(nfiles-1)
-            A             = get_aperture(aperture)
-            noise_matrix  = A.dot(covmatrix.dot(A.T))
-            noise         = np.sqrt( np.diag(noise_matrix) ).reshape( (dim,dim) )
+            noise         = calcNoise(files, npix, aperture) 
             x,rad_prof[ic]= azimuthalAverage(noise, binsize=binsize, stddev=False, interpnan=True, returnradii=True)
             rad_prof[ic]  = rad_prof[ic]/psf_aper.max()
 
