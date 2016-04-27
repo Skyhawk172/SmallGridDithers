@@ -1,41 +1,24 @@
 ##########################################################################
-# WHAT: AzimuthalAverage.py
+# WHAT: AzimuthalAverage_COV.py
 #      
-#      Calculates azimuthal average for every contrast image in the 
-#      specified directory on command line 
-#      (e.g. CDR for ~/CWG/Latency/Contrast_CDR). All the radial profiles
-#      are averaged and only the average and the +/-1 sigma lines are 
-#      plotted.
+#       This is a modified and lighter version of AzimuthalAverage_SGD.py
 #
-#      Also plots in inset the distribution of positions used to create
-#      the images.
+#       Calculates the noise matrix from all the contrast maps in the 
+#       input folder according to the JWST ETC (Kyle van Gorkom). The 
+#       contrast is then plotted for all of the different methods 
+#       (e.g. Classical, LOCI, LOCI5pt, etc) available.
 #
-#      The contrast images are created by Mathematica Notebook 
-#      JWST small-grid-dither reduction V2.0 LOOP.nb and 
-#      the original PSF images live in /JWST/Simulations/.../Jitter**/.
-#
-#
-#
-#
-# HOW: The call should include the directory where the contrast files live:
-#      "python AzimuthalAverage.py 1550 CDR_PhotNoise"
+# HOW: python AzimuthalAverage_COV.py --help
 #       
 # WHO:  C-P LAJOIE
-# WHEN: July 2013
+# WHEN: April 2016
 ###########################################################################
 
 import numpy as np
-from numpy import *
 import matplotlib.pyplot as P
-import pyfits, os, glob, re, sys
-from matplotlib.ticker import MultipleLocator
+import argparse, pyfits
+import os, glob, sys
 
-import photutils
-from photutils import CircularAperture
-from photutils import aperture_photometry
-
-import scipy
-from scipy import ndimage
 
 
 # FROM KYLE:
@@ -157,32 +140,31 @@ def azimuthalAverage(image, center=None, stddev=False, returnradii=False, return
         return radial_prof
 
 
-def plot_contrast(instr, filt, lambda0, x, av_prof, kw):
-
+def plot_contrast(instr, filt, lambda0, x, av_prof, nsig, kw):
+    print instr
     fig ,(ax,ax2)  = P.subplots(2,figsize=( (11,8) ) )
 
-    nsigmas = 5
-
     # size of input images (7.04 arcseconds)
-    if "MIRI" in sys.argv[1]:     pixelSize = 0.11
-    elif "NIRCam" in sys.argv[1]: pixelSize= 0.032 if lambda0<=2.35 else 0.065
+    if   instr=="MIRI":   pixelSize = 0.11
+    elif instr=="NIRCam": pixelSize = 0.032 if lambda0<=2.35 else 0.065
 
     JWSTdiam = 6.61099137008
-    lambdaD=lambda0*1e-6/JWSTdiam *180/pi*3600.  # in arcseconds
+    lambdaD=lambda0*1e-6/JWSTdiam *180/np.pi*3600.  # in arcseconds
     xLoverD = x / (lambdaD/pixelSize)
     xmax=np.max(xLoverD)
 
-
+    # PLOT PROFILES AND RELATIVE GAIN:
     arcseconds = x*pixelSize
     for i in xrange(len(kw)):
-        ax.plot(x*pixelSize, np.log10(nsigmas*av_prof[i]),'-', label=kw[i])
+        ax.plot(x*pixelSize, np.log10(nsig*av_prof[i]),'-', label=kw[i])
         if i>0: ax2.plot(arcseconds, av_prof[0]/av_prof[i])
         print kw[i],"\n",np.log10(av_prof[i])
 
 
+    # PLOT AXIS + LEGEND:
     ax.legend(loc=1)
     ax.set_xlabel("Separation (arcsec)")
-    ax.set_ylabel('%d$\sigma$ contrast (Log)' % nsigmas)
+    ax.set_ylabel('%d$\sigma$ contrast (Log)' % nsig)
     ax.set_ylim(-8., -2.) 
     ax.set_xlim(0., np.max(arcseconds) )
 
@@ -201,7 +183,7 @@ def plot_contrast(instr, filt, lambda0, x, av_prof, kw):
     axtop.set_xlim(0.,xmax)
     axtop.set_xlabel(r"$\lambda/D$ (at %5.2f $\mu$m)" %lambda0)
 
-
+    # SAVE FIGURE:
     filename="AzimuthalAverage_"+filt+".pdf"
     raw_input("\nPress enter to save PDF to '%s'" %filename)
     print '   --> Saving to file',filename
@@ -224,22 +206,30 @@ if __name__ == "__main__":
     #############################################
     #INPUT PARAMETERS AND GLOB FILES:
     #############################################
-    indir= sys.argv[1]
+    parser = argparse.ArgumentParser(description="Calculate noise and plot radial contrast profiles")
+    parser.add_argument("dir" , type=str, help="Input directory")
+    parser.add_argument("-s"  , type=float, default= 5., help="Nsigmas to plot (default=5)")
+    args = parser.parse_args()
+
+
+    indir= args.dir
     filt = indir.split('/')[1]
+    nsigmas = args.s
+    
 
     if "Planets" in indir: 
         print "\n These maps have planets, continue? (press enter)"
         raw_input()
-    if "F210M" in indir : lambda0=2.10
-    if "F430M" in indir : lambda0=4.30
-    if "F460M" in indir : lambda0=4.60
+    if "F210M"  in indir: lambda0= 2.10
+    if "F430M"  in indir: lambda0= 4.30
+    if "F460M"  in indir: lambda0= 4.60
     if "F1065C" in indir: lambda0=10.65
     if "F1140C" in indir: lambda0=11.40
     if "F1550C" in indir: lambda0=15.50
 
     # size of input images (7.04 arcseconds)
-    if "MIRI" in sys.argv[1]:     instr = 'MIRI'
-    elif "NIRCam" in sys.argv[1]: instr = 'NIRCAM'
+    if "MIRI" in indir:     instr = 'MIRI'
+    elif "NIRCam" in indir: instr = 'NIRCAM'
         
 
     os.chdir('/Users/lajoie/Documents/Work/Projects/JWST/Simulations/Coronagraphs/Dither-LOCI/Results/'+indir)
@@ -270,21 +260,22 @@ if __name__ == "__main__":
 
 
 
-
     #############################################
     # CALCULATE NOISE AND AZIMUTHAL PROFILES:
     #############################################
-    rad_prof = np.empty( (len(keywords), nbins) )
-    max_gain=0
+    print '\n   Reading contrast files from %s\n' %indir
+
     ic = 0
     types=[]
-    print '\n   Reading contrast files from %s\n' %indir
+    rad_prof = np.empty( (len(keywords), nbins) )
     for kw in keywords:
+
         files=glob.glob('*Map*'+kw+'_run*.fits')
         nfiles=len(files)
         
         if nfiles==0: 
             print '      Error: no %s contrast maps found\n' %kw
+
         else: 
             types.append(kw)
             print '      Processing %s files #:'%kw,
@@ -297,13 +288,13 @@ if __name__ == "__main__":
                 images[i] =  hdu[0].data.flatten()
                 hdu.close()
 
-            images = images.T
-            covmatrix    = images.dot(images.T)/(nfiles-1)
-            A            = get_aperture(aperture)
-            noise_matrix = A.dot(covmatrix.dot(A.T))
-            noise        = np.sqrt( np.diag(noise_matrix) ).reshape( (dim,dim) )
-            x,rad_prof[ic] = azimuthalAverage(noise, binsize=binsize, stddev=False, interpnan=True, returnradii=True)
-            rad_prof[ic] = rad_prof[ic]/psf_aper.max()
+            images        = images.T
+            covmatrix     = images.dot(images.T)/(nfiles-1)
+            A             = get_aperture(aperture)
+            noise_matrix  = A.dot(covmatrix.dot(A.T))
+            noise         = np.sqrt( np.diag(noise_matrix) ).reshape( (dim,dim) )
+            x,rad_prof[ic]= azimuthalAverage(noise, binsize=binsize, stddev=False, interpnan=True, returnradii=True)
+            rad_prof[ic]  = rad_prof[ic]/psf_aper.max()
 
             ic+=1
             print "\n"
@@ -312,7 +303,7 @@ if __name__ == "__main__":
     #############################################
     # PLOT CONTRAST CURVES:
     #############################################
-    plot_contrast(instr, filt, lambda0, x, rad_prof, types)
+    plot_contrast(instr, filt, lambda0, x, rad_prof, nsigmas, types)
 
 
 
